@@ -129,8 +129,8 @@ class FileHandler:
             # Debug: Log the first few rows
             self.logger.debug(f"Merged DataFrame preview:\n{merged_df.head()}")
 
-            # Clean the merged DataFrame using the workaround
-            cleaned_df, rows_removed = self.clean_merged_df_with_workaround(merged_df)
+            # Clean the merged DataFrame without the workaround
+            cleaned_df, rows_removed = self.clean_merged_df(merged_df)
 
             if rows_removed > 0:
                 self.logger.info(f"Removed {rows_removed} rows with empty or '.' in 'Actual_Gene_Name' or all data columns empty.")
@@ -143,13 +143,14 @@ class FileHandler:
             self.logger.error(error_message)
             raise ValueError(error_message)
 
-    def clean_merged_df_with_workaround(self, merged_df):
+    def clean_merged_df(self, merged_df):
         """
-        Cleans the merged DataFrame using the workaround:
-        1. Insert an empty row between the header and the first data row.
-        2. Remove rows where 'Actual_Gene_Name' is '.'.
-        3. Remove the inserted empty row.
-        4. Remove rows where all data columns are empty, 'NA', 'na', or 0.
+        Cleans the merged DataFrame by:
+        1. Removing rows where 'Actual_Gene_Name' is '.'.
+        2. Replacing 'NA', 'na', '.', and 0 with NaN in data columns.
+        3. Dropping rows where all data columns are NaN.
+        4. Converting data columns to numeric types.
+        5. Replacing remaining NaN values with 0.
 
         Parameters:
             merged_df (DataFrame): The merged pandas DataFrame.
@@ -157,51 +158,43 @@ class FileHandler:
         Returns:
             tuple: (cleaned DataFrame, number of rows removed)
         """
-        # Ensure the DataFrame has at least one row
-        if merged_df.empty:
-            self.logger.warning("The merged DataFrame is empty. No cleaning performed.")
-            return merged_df, 0
+        # Initial row count
+        initial_row_count = merged_df.shape[0]
 
-        # Split the DataFrame into the first row (header) and the rest
-        first_row = merged_df.iloc[[0]].copy()
-        data_rows = merged_df.iloc[1:].copy()
-
-        # Insert an empty row after the header
-        empty_row = pd.DataFrame([[pd.NA] * merged_df.shape[1]], columns=merged_df.columns)
-        merged_df_with_empty = pd.concat([first_row, empty_row, data_rows], ignore_index=True)
-        self.logger.debug("Inserted an empty row after the header.")
-
-        # Remove rows where 'Actual_Gene_Name' is exactly '.'
-        condition_dot = merged_df_with_empty['Actual_Gene_Name'] == '.'
+        # 1. Remove rows where 'Actual_Gene_Name' is exactly '.'
+        condition_dot = merged_df['Actual_Gene_Name'] == '.'
         rows_removed_dot = condition_dot.sum()
-        merged_df_without_dots = merged_df_with_empty[~condition_dot]
+        cleaned_df = merged_df[~condition_dot]
         self.logger.debug(f"Removed {rows_removed_dot} rows where 'Actual_Gene_Name' is '.'.")
 
-        # Remove the inserted empty row (any row that is entirely NaN)
-        merged_df_final = merged_df_without_dots.dropna(how='all').reset_index(drop=True)
-        self.logger.debug("Removed the inserted empty row.")
+        # 2. Define data columns (excluding 'Gene_Code' and 'Actual_Gene_Name')
+        data_columns = [col for col in cleaned_df.columns if col not in ['Gene_Code', 'Actual_Gene_Name']]
 
-        # Now, remove rows where all data columns are empty, 'NA', 'na', or 0
-        # Define data columns (excluding 'Gene_Code' and 'Actual_Gene_Name')
-        data_columns = [col for col in merged_df_final.columns if col not in ['Gene_Code', 'Actual_Gene_Name']]
+        # 3. Replace 'NA', 'na', '.', and 0 with NaN in data columns
+        cleaned_df.loc[:, data_columns] = cleaned_df[data_columns].replace(['NA', 'na', '.', 0], pd.NA)
+        self.logger.debug("Replaced 'NA', 'na', '.', and 0 with NaN in data columns.")
 
-        # Replace 'NA', 'na', and 0 with NaN
-        merged_df_final.loc[:, data_columns] = merged_df_final[data_columns].replace(['NA', 'na', 0], pd.NA)
-
-        # Drop rows where all data columns are NaN
-        condition_all_empty = merged_df_final[data_columns].isna().all(axis=1)
+        # 4. Drop rows where all data columns are NaN
+        condition_all_empty = cleaned_df[data_columns].isna().all(axis=1)
         rows_removed_empty = condition_all_empty.sum()
-        cleaned_data_rows = merged_df_final[~condition_all_empty]
-        self.logger.debug(f"Removed {rows_removed_empty} rows where all data columns are empty, 'NA', 'na', or 0.")
+        cleaned_df = cleaned_df[~condition_all_empty]
+        self.logger.debug(f"Removed {rows_removed_empty} rows where all data columns are empty, 'NA', 'na', '.', or 0.")
 
-        # Concatenate the first row back to the cleaned data if it was dropped
-        # (In this workaround, the first row is kept as 'first_row')
-        # Since we already included the first row, no need to re-concatenate
+        # 5. Convert data columns to numeric types, coercing errors to NaN
+        cleaned_df[data_columns] = cleaned_df[data_columns].apply(pd.to_numeric, errors='coerce')
+        self.logger.debug("Converted data columns to numeric types, coercing errors to NaN.")
 
-        # Calculate total rows removed
-        total_rows_removed = rows_removed_dot + rows_removed_empty
+        # 6. Replace remaining NaN values in data columns with 0
+        cleaned_df.loc[:, data_columns] = cleaned_df[data_columns].fillna(0)
+        self.logger.debug("Replaced remaining missing values in data columns with 0.")
 
-        return cleaned_data_rows, total_rows_removed
+        # Final row count
+        final_row_count = cleaned_df.shape[0]
+        total_rows_removed = initial_row_count - final_row_count
+
+        self.logger.debug(f"Initial rows: {initial_row_count}, after cleaning: {final_row_count}, total removed: {total_rows_removed}")
+
+        return cleaned_df, total_rows_removed
 
     def cleanup(self):
         """
