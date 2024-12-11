@@ -2,13 +2,12 @@
 
 import os
 import pandas as pd
-import shutil
 from tcga.utils.logger import setup_logger
 
 class FileHandler:
     def __init__(self, logger):
-        self.methylation_files = {}  # Dictionary to store methylation DataFrames
-        self.gene_mapping_files = {}  # Dictionary to store gene mapping DataFrames
+        self.methylation_df = None  # DataFrame for methylation data
+        self.gene_mapping_df = None  # DataFrame for gene mapping data
         self.logger = logger  # Use the passed logger
 
     def upload_file(self, file_path, file_type):
@@ -33,7 +32,7 @@ class FileHandler:
             if file_type == 'methylation':
                 # Read the file as TSV
                 df = pd.read_csv(file_path, sep='\t')
-                self.methylation_files[file_name] = df
+                self.methylation_df = df
                 self.logger.info(f"Successfully uploaded methylation file '{file_name}'.")
             elif file_type == 'gene_mapping':
                 # Read the gene mapping file as TSV, ensure it has at least two columns
@@ -51,15 +50,15 @@ class FileHandler:
                     error_message = f"Gene mapping file '{file_name}' contains duplicate Gene_Code entries: {', '.join(duplicate_genes)}"
                     self.logger.error(error_message)
                     raise ValueError(error_message)
-                self.gene_mapping_files[file_name] = df
+                self.gene_mapping_df = df
                 self.logger.info(f"Successfully uploaded gene mapping file '{file_name}'.")
             else:
                 error_message = f"Unknown file type: {file_type}"
                 self.logger.error(error_message)
                 raise ValueError(error_message)
-            
-            # Print preview
-            self.print_preview(df, file_name)
+
+            # No preview as per new requirements
+
             return file_name
         except pd.errors.ParserError as pe:
             error_message = f"Failed to parse '{file_name}' as TSV: {pe}"
@@ -69,19 +68,6 @@ class FileHandler:
             error_message = f"Error reading '{file_name}': {e}"
             self.logger.error(error_message)
             raise ValueError(error_message)
-
-    def print_preview(self, df, file_name, num_rows=5):
-        """
-        Prints the first few rows of the DataFrame to the console.
-
-        Parameters:
-            df (DataFrame): The pandas DataFrame.
-            file_name (str): The name of the file.
-            num_rows (int): Number of rows to print.
-        """
-        print(f"\n=== Preview of '{file_name}' ===")
-        print(df.head(num_rows))
-        print("==============================\n")
 
     def merge_files(self):
         """
@@ -93,30 +79,25 @@ class FileHandler:
         Raises:
             ValueError: If required files are missing or merging fails.
         """
-        if not self.methylation_files:
-            error_message = "No methylation files uploaded. Please upload at least one methylation file."
+        if self.methylation_df is None:
+            error_message = "No methylation file uploaded. Please upload a methylation file."
             self.logger.error(error_message)
             raise ValueError(error_message)
-        if not self.gene_mapping_files:
-            error_message = "No gene mapping files uploaded. Please upload at least one gene mapping file."
+        if self.gene_mapping_df is None:
+            error_message = "No gene mapping file uploaded. Please upload a gene mapping file."
             self.logger.error(error_message)
             raise ValueError(error_message)
 
-        # For simplicity, use the first uploaded methylation and gene mapping files
-        # You can extend this to handle multiple files as needed
-        methylation_file_name, methylation_df = next(iter(self.methylation_files.items()))
-        gene_mapping_file_name, gene_mapping_df = next(iter(self.gene_mapping_files.items()))
-
-        self.logger.info(f"Merging methylation file '{methylation_file_name}' with gene mapping file '{gene_mapping_file_name}'.")
+        self.logger.info("Merging methylation data with gene mapping data.")
 
         try:
             # Assuming the first column in methylation_df is 'Gene_Code'
-            if methylation_df.columns[0].lower() != 'gene_code':
-                methylation_df = methylation_df.rename(columns={methylation_df.columns[0]: 'Gene_Code'})
-                self.logger.info(f"Renamed first column of methylation file '{methylation_file_name}' to 'Gene_Code'.")
+            if self.methylation_df.columns[0].lower() != 'gene_code':
+                self.methylation_df = self.methylation_df.rename(columns={self.methylation_df.columns[0]: 'Gene_Code'})
+                self.logger.info("Renamed first column of methylation data to 'Gene_Code'.")
 
             # Merge on 'Gene_Code'
-            merged_df = pd.merge(methylation_df, gene_mapping_df, on='Gene_Code', how='left')
+            merged_df = pd.merge(self.methylation_df, self.gene_mapping_df, on='Gene_Code', how='left')
 
             # Reorder columns: 'Gene_Code', 'Actual_Gene_Name', followed by the rest
             cols = merged_df.columns.tolist()
@@ -142,37 +123,6 @@ class FileHandler:
             error_message = f"Error during merging: {e}"
             self.logger.error(error_message)
             raise ValueError(error_message)
-
-    def get_uploaded_files(self):
-        """
-        Returns a dictionary of uploaded file names categorized by file type.
-
-        Returns:
-            dict: Dictionary with keys 'methylation' and 'gene_mapping' containing lists of file names.
-        """
-        return {
-            'methylation': list(self.methylation_files.keys()),
-            'gene_mapping': list(self.gene_mapping_files.keys())
-        }
-
-    def get_file(self, file_type, file_name):
-        """
-        Retrieves the DataFrame associated with the given file name based on file type.
-
-        Parameters:
-            file_type (str): Type of the file ('methylation' or 'gene_mapping').
-            file_name (str): The name of the file.
-
-        Returns:
-            DataFrame or None: The pandas DataFrame if exists, else None.
-        """
-        if file_type == 'methylation':
-            return self.methylation_files.get(file_name, None)
-        elif file_type == 'gene_mapping':
-            return self.gene_mapping_files.get(file_name, None)
-        else:
-            self.logger.error(f"Unknown file type: {file_type}")
-            return None
 
     def cleanup(self):
         # If you have temporary directories or files, handle cleanup here

@@ -10,16 +10,33 @@ class GUI:
         self.logger = logger
         self.logger.info("Initializing GUI")
         self.file_handler = FileHandler(logger)  # Pass logger to FileHandler
+
         self.layout = [
-            [sg.Text('TCGA - Data Merger Tool', font=('Helvetica', 16))],
-            [sg.Button('Upload Methylation File'), sg.Button('Upload Gene Mapping File')],
-            [sg.Text('Uploaded Methylation Files:')],
-            [sg.Listbox(values=[], size=(80, 5), key='-MET FILE LIST-')],
-            [sg.Text('Uploaded Gene Mapping Files:')],
-            [sg.Listbox(values=[], size=(80, 5), key='-GENE MAP FILE LIST-')],
-            [sg.Button('Save Merged Data'), sg.Button('Exit')]
+            [sg.Text('TCGA - Data Merger Tool', font=('Helvetica', 16), justification='center', expand_x=True)],
+            
+            # Methylation File Selection
+            [sg.Text('Methylation File:', size=(20, 1)), 
+             sg.Input(key='-MET_FILE-', enable_events=True, size=(50,1)), 
+             sg.FileBrowse()],
+            
+            # Gene Mapping File Selection
+            [sg.Text('Gene Mapping File:', size=(20, 1)), 
+             sg.Input(key='-GENE_MAP_FILE-', enable_events=True, size=(50,1)), 
+             sg.FileBrowse()],
+            
+            # Save Directory Selection
+            [sg.Text('Save Directory:', size=(20, 1)), 
+             sg.Input(key='-SAVE_DIR-', enable_events=True, size=(50,1)), 
+             sg.FolderBrowse()],
+            
+            # Action Buttons
+            [sg.Button('Save Merged Data', size=(20, 1)), sg.Button('Exit', size=(10, 1))],
+            
+            # Status Message
+            [sg.Text('', size=(80, 2), key='-STATUS-', text_color='green')]
         ]
-        self.window = sg.Window('TCGA', self.layout, finalize=True)
+
+        self.window = sg.Window('TCGA Data Merger', self.layout, finalize=True)
 
     def run(self):
         self.logger.info("Starting GUI event loop")
@@ -28,95 +45,89 @@ class GUI:
             if event in (sg.WINDOW_CLOSED, 'Exit'):
                 self.logger.info("Exiting GUI")
                 break
-            elif event == 'Upload Methylation File':
-                self.handle_upload('methylation')
-            elif event == 'Upload Gene Mapping File':
-                self.handle_upload('gene_mapping')
             elif event == 'Save Merged Data':
-                self.handle_save()
+                self.handle_save(values)
         self.window.close()
         self.logger.info("GUI window closed")
         self.file_handler.cleanup()
 
-    def handle_upload(self, file_type):
-        if file_type == 'methylation':
-            listbox_key = '-MET FILE LIST-'
-            button_label = 'Upload Methylation File'
-        elif file_type == 'gene_mapping':
-            listbox_key = '-GENE MAP FILE LIST-'
-            button_label = 'Upload Gene Mapping File'
-        else:
-            self.logger.error(f"Unknown file type: {file_type}")
+    def handle_save(self, values):
+        self.logger.info("Save Merged Data button clicked")
+
+        methylation_path = values['-MET_FILE-']
+        gene_mapping_path = values['-GENE_MAP_FILE-']
+        save_dir = values['-SAVE_DIR-']
+
+        # Validate that all fields are selected
+        if not methylation_path:
+            sg.popup_error("Please select a Methylation File.")
+            self.logger.warning("Methylation File not selected.")
+            self.update_status("Error: Methylation File not selected.", error=True)
+            return
+        if not gene_mapping_path:
+            sg.popup_error("Please select a Gene Mapping File.")
+            self.logger.warning("Gene Mapping File not selected.")
+            self.update_status("Error: Gene Mapping File not selected.", error=True)
+            return
+        if not save_dir:
+            sg.popup_error("Please select a Save Directory.")
+            self.logger.warning("Save Directory not selected.")
+            self.update_status("Error: Save Directory not selected.", error=True)
             return
 
-        self.logger.info(f"{button_label} button clicked")
-        file_paths = sg.popup_get_file(
-            f'Select {file_type.capitalize()} Files to Upload', 
-            multiple_files=True, 
-            file_types=[("All Files", "*.*")],  # Allow any file type
-            title=f"Upload {file_type.capitalize()} Files"
-        )
-        if file_paths:
-            # Split the file paths based on the operating system
-            if ';' in file_paths:
-                files = file_paths.split(';')
-            elif '|' in file_paths:
-                files = file_paths.split('|')
-            else:
-                files = [file_paths]
-            
-            for file_path in files:
-                try:
-                    file_name = self.file_handler.upload_file(file_path, file_type)
-                    current_files = self.window[listbox_key].get_list_values()
-                    self.window[listbox_key].update(values=current_files + [file_name])
-                    
-                    # Retrieve the DataFrame and create a preview string
-                    df = self.file_handler.get_file(file_type, file_name)
-                    if df is not None:
-                        preview = df.head().to_string(index=False)
-                        sg.popup_scrolled(f"Preview of '{file_name}':\n\n{preview}", title=f"Preview - {file_name}", size=(80, 20))
-                    else:
-                        self.logger.warning(f"No DataFrame found for '{file_name}'.")
-                        sg.popup_error(f"No data found in '{file_name}'.")
-                    
-                except ValueError as ve:
-                    sg.popup_error(f"Error uploading '{file_path}': {ve}")
-                    self.logger.error(f"Error uploading '{file_path}': {ve}")
-
-    def handle_save(self):
-        self.logger.info("Save Merged Data button clicked")
         try:
+            # Upload both files
+            methylation_file_name = self.file_handler.upload_file(methylation_path, 'methylation')
+            gene_mapping_file_name = self.file_handler.upload_file(gene_mapping_path, 'gene_mapping')
+
+            # Merge the files
             merged_df = self.file_handler.merge_files()
+
             if merged_df.empty:
-                sg.popup_error("Merged DataFrame is empty. Ensure both files are uploaded correctly.")
+                sg.popup_error("Merged DataFrame is empty. Please check the uploaded files.")
                 self.logger.error("Merged DataFrame is empty.")
+                self.update_status("Error: Merged DataFrame is empty.", error=True)
                 return
+
+            # Define merged file name
+            merged_file_name = 'merged_methylation_data.csv'
+            merged_file_path = os.path.join(save_dir, merged_file_name)
+
+            # Handle duplicate file names
+            counter = 1
+            while os.path.exists(merged_file_path):
+                merged_file_name = f'merged_methylation_data_{counter}.csv'
+                merged_file_path = os.path.join(save_dir, merged_file_name)
+                counter += 1
+
+            # Save merged DataFrame as CSV
+            merged_df.to_csv(merged_file_path, index=False)
+            self.logger.info(f"Merged data saved as '{merged_file_name}' in '{save_dir}'.")
+
+            # Update status in GUI
+            self.update_status(f"Merged data saved as '{merged_file_name}'.", success=True)
+
         except ValueError as ve:
             sg.popup_error(f"Error merging files: {ve}")
             self.logger.error(f"Error merging files: {ve}")
-            return
+            self.update_status(f"Error: {ve}", error=True)
         except Exception as e:
-            sg.popup_error(f"An unexpected error occurred during merging: {e}")
+            sg.popup_error(f"An unexpected error occurred: {e}")
             self.logger.error(f"Unexpected error during merging: {e}")
-            return
+            self.update_status(f"Error: {e}", error=True)
 
-        output_dir = sg.popup_get_folder('Select Folder to Save Merged CSV File', title="Save Merged CSV")
-        if output_dir:
-            try:
-                merged_file_name = 'merged_methylation_data.csv'
-                merged_file_path = os.path.join(output_dir, merged_file_name)
-                # Handle duplicate file names
-                counter = 1
-                while os.path.exists(merged_file_path):
-                    merged_file_name = f'merged_methylation_data_{counter}.csv'
-                    merged_file_path = os.path.join(output_dir, merged_file_name)
-                    counter += 1
-                merged_df.to_csv(merged_file_path, index=False)
-                sg.popup(f"Merged data has been saved as '{merged_file_name}' in '{output_dir}'.", title='Save Successful')
-                self.logger.info(f"Merged data saved as '{merged_file_name}' in '{output_dir}'.")
-            except Exception as e:
-                sg.popup_error(f"Error saving merged data: {e}")
-                self.logger.error(f"Error saving merged data: {e}")
+    def update_status(self, message, success=False, error=False):
+        """
+        Updates the status message in the GUI.
+
+        Parameters:
+            message (str): The message to display.
+            success (bool): If True, displays the message in green.
+            error (bool): If True, displays the message in red.
+        """
+        if success:
+            self.window['-STATUS-'].update(message, text_color='black')
+        elif error:
+            self.window['-STATUS-'].update(message, text_color='red')
         else:
-            self.logger.info("Save Merged Data operation cancelled by the user.")
+            self.window['-STATUS-'].update(message)
