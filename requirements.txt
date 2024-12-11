@@ -1,0 +1,12 @@
+filetype==1.2.0
+PySimpleGUI==5.0.7
+pandas==2.2.3
+openpyxl==3.1.5
+rsa==4.9
+numpy==2.2.0
+python-dateutil==2.9.0.post0
+pytz==2024.2
+tzdata==2024.2
+et-xmlfile==2.0.0
+six==1.17.0
+pyasn1==0.6.1
