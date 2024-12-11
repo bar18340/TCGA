@@ -1,28 +1,22 @@
 # tcga/utils/logger.py
 
 import logging
+from logging.handlers import RotatingFileHandler
 
 def setup_logger():
     logger = logging.getLogger('TCGA')
-    logger.setLevel(logging.DEBUG)
-    
-    # Prevent adding multiple handlers if logger already has handlers
+    logger.setLevel(logging.DEBUG)  # Set to DEBUG to capture all logs
+
+    # Create a rotating file handler
+    handler = RotatingFileHandler('tcga.log', maxBytes=5*1024*1024, backupCount=5)
+    handler.setLevel(logging.DEBUG)
+
+    # Create a logging format
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+
+    # Add the handlers to the logger
     if not logger.handlers:
-        # Create console handler for INFO level
-        c_handler = logging.StreamHandler()
-        c_handler.setLevel(logging.INFO)
-        
-        # Create file handler for DEBUG level
-        f_handler = logging.FileHandler('tcga.log')
-        f_handler.setLevel(logging.DEBUG)
-        
-        # Create formatter and add it to handlers
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        c_handler.setFormatter(formatter)
-        f_handler.setFormatter(formatter)
-        
-        # Add handlers to the logger
-        logger.addHandler(c_handler)
-        logger.addHandler(f_handler)
-    
+        logger.addHandler(handler)
+
     return logger
