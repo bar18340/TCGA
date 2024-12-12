@@ -1,15 +1,21 @@
 # tcga/interface/gui.py
 
 import PySimpleGUI as sg
-from tcga.data.file_handler import FileHandler
+from tcga.controller.controller import Controller
 from tcga.utils.logger import setup_logger
 import os
 
 class GUI:
     def __init__(self, logger):
+        """
+        Initializes the GUI with the specified logger and sets up the layout.
+
+        Parameters:
+            logger (logging.Logger): The logger instance for logging events.
+        """
         self.logger = logger
         self.logger.info("Initializing GUI")
-        self.file_handler = FileHandler(logger)  # Pass logger to FileHandler
+        self.controller = Controller(logger)  # Initialize Controller
 
         self.layout = [
             [sg.Text('TCGA - Data Merger Tool', font=('Helvetica', 16, 'bold'), text_color='blue', justification='center', expand_x=True)],
@@ -48,6 +54,9 @@ class GUI:
         self.window = sg.Window('TCGA Data Merger', self.layout, finalize=True, resizable=True)
 
     def run(self):
+        """
+        Starts the GUI event loop, handling user interactions.
+        """
         self.logger.info("Starting GUI event loop")
         while True:
             event, values = self.window.read()
@@ -58,9 +67,16 @@ class GUI:
                 self.handle_save(values)
         self.window.close()
         self.logger.info("GUI window closed")
-        self.file_handler.cleanup()
+        self.controller.file_handler.cleanup()
 
     def handle_save(self, values):
+        """
+        Handles the 'Save Merged Data' button click event. Validates inputs,
+        uploads files, processes data, and saves the output.
+
+        Parameters:
+            values (dict): Dictionary containing the current values of the GUI elements.
+        """
         self.logger.info("Save Merged Data button clicked")
 
         methylation_path = values['-MET_FILE-']
@@ -119,14 +135,14 @@ class GUI:
             return
 
         try:
-            # Upload both files
-            methylation_file_name = self.file_handler.upload_file(methylation_path, 'methylation')
-            gene_mapping_file_name = self.file_handler.upload_file(gene_mapping_path, 'gene_mapping')
+            # Process files using the Controller
+            cleaned_df, rows_removed = self.controller.process_files(
+                methylation_path=methylation_path,
+                gene_mapping_path=gene_mapping_path,
+                zero_percent=zero_percent_value
+            )
 
-            # Merge and clean the files, passing the zero_percent_value
-            merged_df, rows_removed = self.file_handler.merge_files(zero_percent=zero_percent_value)
-
-            if merged_df.empty:
+            if cleaned_df.empty:
                 sg.popup_error("Merged DataFrame is empty. Please check the uploaded files.")
                 self.logger.error("Merged DataFrame is empty.")
                 self.update_status("Error: Merged DataFrame is empty.", error=True)
@@ -144,7 +160,7 @@ class GUI:
                 counter += 1
 
             # Save merged DataFrame as CSV
-            merged_df.to_csv(merged_file_path, index=False)
+            cleaned_df.to_csv(merged_file_path, index=False)
             self.logger.info(f"Merged data saved as '{os.path.basename(merged_file_path)}' in '{save_dir}'.")
 
             # Determine the final file name (with counter if appended)
