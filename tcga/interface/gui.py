@@ -33,6 +33,10 @@ class GUI:
             [sg.Text('Output File Name:', size=(20, 1)), 
              sg.InputText('merged_methylation_data.csv', key='-OUTPUT_FILE-', size=(45,1), tooltip='Enter desired name for the merged CSV file')],
             
+            # Maximum Percentage of Zeros Input
+            [sg.Text('Clean rows with (%) of Zeros (0-100):', size=(30,1)),
+             sg.InputText('100', key='-ZERO_PERCENT-', size=(10,1), tooltip='Enter a number between 0 and 100')],
+            
             # Action Buttons
             [sg.Button('Save Merged Data', size=(20, 1), button_color=('white', 'green')),
              sg.Button('Exit', size=(10, 1), button_color=('white', 'red'))],
@@ -63,6 +67,7 @@ class GUI:
         gene_mapping_path = values['-GENE_MAP_FILE-']
         save_dir = values['-SAVE_DIR-']
         output_file_name = values['-OUTPUT_FILE-'].strip()
+        zero_percent = values['-ZERO_PERCENT-'].strip()
 
         # Validate that all fields are selected
         if not methylation_path:
@@ -85,6 +90,22 @@ class GUI:
             self.logger.warning("Output File Name not provided.")
             self.update_status("Error: Output File Name not provided.", error=True)
             return
+        if not zero_percent:
+            sg.popup_error("Please enter the Maximum Percentage of Zeros.")
+            self.logger.warning("Maximum Percentage of Zeros not provided.")
+            self.update_status("Error: Maximum Percentage of Zeros not provided.", error=True)
+            return
+
+        # Validate the zero_percent input
+        try:
+            zero_percent_value = float(zero_percent)
+            if not (0 <= zero_percent_value <= 100):
+                raise ValueError
+        except ValueError:
+            sg.popup_error("Maximum Percentage of Zeros must be a number between 0 and 100.")
+            self.logger.warning("Invalid Maximum Percentage of Zeros input.")
+            self.update_status("Error: Invalid Maximum Percentage of Zeros input.", error=True)
+            return
 
         # Ensure the file name has a .csv extension
         if not output_file_name.lower().endswith('.csv'):
@@ -102,8 +123,8 @@ class GUI:
             methylation_file_name = self.file_handler.upload_file(methylation_path, 'methylation')
             gene_mapping_file_name = self.file_handler.upload_file(gene_mapping_path, 'gene_mapping')
 
-            # Merge and clean the files
-            merged_df, rows_removed = self.file_handler.merge_files()
+            # Merge and clean the files, passing the zero_percent_value
+            merged_df, rows_removed = self.file_handler.merge_files(zero_percent=zero_percent_value)
 
             if merged_df.empty:
                 sg.popup_error("Merged DataFrame is empty. Please check the uploaded files.")
@@ -131,9 +152,9 @@ class GUI:
 
             # Update status in GUI with rows removed
             if rows_removed > 0:
-                status_message = f"Merged data saved as '{final_file_name}'.\nRemoved {rows_removed} empty/no-data rows."
+                status_message = f"Merged data saved as '{final_file_name}'.\nRemoved {rows_removed} rows exceeding {zero_percent_value}% zeros."
             else:
-                status_message = f"Merged data saved as '{final_file_name}'. No empty/no-data rows removed."
+                status_message = f"Merged data saved as '{final_file_name}'. No rows exceeded {zero_percent_value}% zeros."
             self.update_status(status_message, success=True)
 
         except ValueError as ve:
@@ -151,7 +172,7 @@ class GUI:
 
         Parameters:
             message (str): The message to display.
-            success (bool): If True, displays the message in green.
+            success (bool): If True, displays the message in black.
             error (bool): If True, displays the message in red.
         """
         if success:

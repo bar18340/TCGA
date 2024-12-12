@@ -80,9 +80,12 @@ class FileHandler:
             self.logger.error(error_message)
             raise ValueError(error_message)
 
-    def merge_files(self):
+    def merge_files(self, zero_percent=0):
         """
         Merges methylation data with gene mapping data based on gene code names.
+
+        Parameters:
+            zero_percent (float): The maximum allowable percentage of zeros in any row.
 
         Returns:
             tuple: (cleaned DataFrame, number of rows removed)
@@ -130,10 +133,10 @@ class FileHandler:
             self.logger.debug(f"Merged DataFrame preview:\n{merged_df.head()}")
 
             # Clean the merged DataFrame without the workaround
-            cleaned_df, rows_removed = self.clean_merged_df(merged_df)
+            cleaned_df, rows_removed = self.clean_merged_df(merged_df, zero_percent=zero_percent)
 
             if rows_removed > 0:
-                self.logger.info(f"Removed {rows_removed} rows with empty or '.' in 'Actual_Gene_Name' or all data columns empty.")
+                self.logger.info(f"Removed {rows_removed} rows exceeding {zero_percent}% zeros.")
 
             self.logger.info("Merging and cleaning completed successfully.")
             return cleaned_df, rows_removed
@@ -143,7 +146,7 @@ class FileHandler:
             self.logger.error(error_message)
             raise ValueError(error_message)
 
-    def clean_merged_df(self, merged_df):
+    def clean_merged_df(self, merged_df, zero_percent=0):
         """
         Cleans the merged DataFrame by:
         1. Removing rows where 'Actual_Gene_Name' is '.'.
@@ -151,9 +154,11 @@ class FileHandler:
         3. Dropping rows where all data columns are NaN.
         4. Converting data columns to numeric types.
         5. Replacing remaining NaN values with 0.
+        6. Removing rows exceeding the specified percentage of zeros.
 
         Parameters:
             merged_df (DataFrame): The merged pandas DataFrame.
+            zero_percent (float): The maximum allowable percentage of zeros in any row.
 
         Returns:
             tuple: (cleaned DataFrame, number of rows removed)
@@ -188,9 +193,20 @@ class FileHandler:
         cleaned_df.loc[:, data_columns] = cleaned_df[data_columns].fillna(0)
         self.logger.debug("Replaced remaining missing values in data columns with 0.")
 
+        # 7. Calculate the percentage of zeros in each row
+        zero_counts = (cleaned_df[data_columns] == 0).sum(axis=1)
+        total_data_columns = len(data_columns)
+        zero_percentage = (zero_counts / total_data_columns) * 100
+
+        # 8. Remove rows where zero_percentage >= zero_percent
+        condition_exceed_zero = zero_percentage >= zero_percent
+        rows_removed_threshold = condition_exceed_zero.sum()
+        cleaned_df = cleaned_df[~condition_exceed_zero]
+        self.logger.debug(f"Removed {rows_removed_threshold} rows exceeding {zero_percent}% zeros.")
+
         # Final row count
         final_row_count = cleaned_df.shape[0]
-        total_rows_removed = initial_row_count - final_row_count
+        total_rows_removed = rows_removed_dot + rows_removed_empty + rows_removed_threshold
 
         self.logger.debug(f"Initial rows: {initial_row_count}, after cleaning: {final_row_count}, total removed: {total_rows_removed}")
 
