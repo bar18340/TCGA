@@ -30,6 +30,11 @@ class GUI:
              sg.Input(key='-GENE_MAP_FILE-', enable_events=True, size=(45,1)), 
              sg.FileBrowse(button_text='Browse', tooltip='Select Gene Mapping TSV File')],
             
+            # Gene Expression File Selection
+            [sg.Text('Gene Expression File:', size=(20, 1)), 
+             sg.Input(key='-GENE_EXP_FILE-', enable_events=True, size=(45,1)), 
+             sg.FileBrowse(button_text='Browse', tooltip='Select Gene Expression TSV File')],
+
             # Save Directory Selection
             [sg.Text('Save Directory:', size=(20, 1)), 
              sg.Input(key='-SAVE_DIR-', enable_events=True, size=(45,1)), 
