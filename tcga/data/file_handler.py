@@ -16,6 +16,7 @@ class FileHandler:
         """
         self.methylation_df = None  # DataFrame for methylation data
         self.gene_mapping_df = None  # DataFrame for gene mapping data
+        self.gene_expression_df = None  # For gene expression files
         self.logger = logger if logger else setup_logger()
         self.merger = DataMerger(logger=self.logger)  # Initialize DataMerger
 
@@ -55,7 +56,6 @@ class FileHandler:
                     self.logger.info(f"Renamed column '{original_first_col}' to 'Gene_Code'.")
                 else:
                     self.logger.debug("'Gene_Code' column already exists in methylation DataFrame.")
-
                 self.logger.debug(f"Methylation DataFrame columns after processing: {df.columns.tolist()}")
                 self.methylation_df = df
                 self.logger.info(f"Successfully uploaded methylation file '{file_name}'.")
@@ -72,7 +72,6 @@ class FileHandler:
                 df = df.iloc[:, :2]
                 df.columns = ['Gene_Code', 'Actual_Gene_Name']  # Standardize column names
                 self.logger.debug(f"Gene Mapping DataFrame columns after renaming: {df.columns.tolist()}")
-
                 # Check for duplicate Gene_Code entries
                 if df['Gene_Code'].duplicated().any():
                     duplicate_genes = df[df['Gene_Code'].duplicated()]['Gene_Code'].unique()
@@ -81,6 +80,25 @@ class FileHandler:
                     raise ValueError(error_message)
                 self.gene_mapping_df = df
                 self.logger.info(f"Successfully uploaded gene mapping file '{file_name}'.")
+
+            elif file_type == 'gene_expression':
+                df = pd.read_csv(file_path, sep='\t', encoding='utf-8')
+                self.logger.debug(f"Gene Expression DataFrame columns before processing: {df.columns.tolist()}")
+                first_col = df.columns[0].strip().lower()
+                if first_col != 'gene_name':
+                    original_first_col = df.columns[0]
+                    df = df.rename(columns={original_first_col: 'Gene_Name'})
+                    self.logger.info(f"Renamed column '{original_first_col}' to 'Gene_Name'.")
+                else:
+                    self.logger.debug("'Gene_Name' column already exists in Gene Expression DataFrame.")
+                self.logger.debug(f"Gene Expression DataFrame columns after processing: {df.columns.tolist()}")
+                if df.iloc[:, 0].duplicated().any():
+                    duplicate_genes = df.iloc[:, 0][df.iloc[:, 0].duplicated()].unique()
+                    error_message = f"Gene expression file '{file_name}' contains duplicate Gene_Name entries: {', '.join(map(str, duplicate_genes))}"
+                    self.logger.error(error_message)
+                    raise ValueError(error_message)
+                self.gene_expression_df = df
+                self.logger.info(f"Successfully uploaded gene expression file '{file_name}'.")
 
             else:
                 error_message = f"Unknown file type: {file_type}"
@@ -121,7 +139,6 @@ class FileHandler:
             raise ValueError(error_message)
 
         self.logger.info("Merging methylation data with gene mapping data.")
-
         try:
             # Use DataMerger to merge and clean the data
             cleaned_df, rows_removed = self.merger.merge_and_clean(
@@ -129,15 +146,26 @@ class FileHandler:
                 gene_mapping_df=self.gene_mapping_df,
                 zero_percent=zero_percent
             )
-
             if rows_removed > 0:
                 self.logger.info(f"Removed {rows_removed} rows exceeding {zero_percent}% zeros.")
-
             self.logger.info("Merging and cleaning completed successfully.")
             return cleaned_df, rows_removed
-
         except Exception as e:
             error_message = f"Error during merging and cleaning: {e}"
+            self.logger.error(error_message)
+            raise ValueError(error_message)
+
+    def clean_gene_expression_df(self, zero_percent: float = 0) -> tuple:
+        if self.gene_expression_df is None:
+            error_message = "No gene expression file uploaded. Please upload a gene expression file."
+            self.logger.error(error_message)
+            raise ValueError(error_message)
+        try:
+            cleaned_df, rows_removed = self.merger.cleaner.clean_gene_expression_df(self.gene_expression_df, zero_percent=zero_percent)
+            self.logger.info(f"Gene expression data cleaned. Rows removed: {rows_removed}")
+            return cleaned_df, rows_removed
+        except Exception as e:
+            error_message = f"Error cleaning gene expression data: {e}"
             self.logger.error(error_message)
             raise ValueError(error_message)
 
