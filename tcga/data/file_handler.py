@@ -1,5 +1,3 @@
-# tcga/data/file_handler.py
-
 import os
 import pandas as pd
 from tcga.utils.logger import setup_logger
@@ -9,31 +7,29 @@ class FileHandler:
     def __init__(self, logger=None):
         """
         Initializes the FileHandler with an optional custom logger.
-        If no logger is provided, sets up a default logger.
-
-        Parameters:
-            logger (logging.Logger, optional): Custom logger. Defaults to None.
         """
-        self.methylation_df = None  # DataFrame for methylation data
-        self.gene_mapping_df = None  # DataFrame for gene mapping data
-        self.gene_expression_df = None  # For gene expression files
+        self.methylation_df = None       # DataFrame for methylation data
+        self.gene_mapping_df = None      # DataFrame for gene mapping data
+        self.gene_expression_df = None   # DataFrame for gene expression files
+        self.phenotype_df = None         # DataFrame for phenotype files (optional)
         self.logger = logger if logger else setup_logger()
         self.merger = DataMerger(logger=self.logger)  # Initialize DataMerger
 
     def upload_file(self, file_path: str, file_type: str) -> str:
         """
         Uploads a file and stores its DataFrame based on the file type.
-
+        Supported file types: 'methylation', 'gene_mapping', 'gene_expression', 'phenotype'.
+        
         Parameters:
             file_path (str): The path to the file.
-            file_type (str): Type of the file ('methylation' or 'gene_mapping').
-
+            file_type (str): Type of the file.
+        
         Returns:
             str: The name of the uploaded file.
-
+        
         Raises:
             FileNotFoundError: If the file does not exist.
-            ValueError: If the file type is unknown or if gene mapping file has insufficient columns or duplicates.
+            ValueError: If the file type is unknown or if file data is malformed.
         """
         if not os.path.exists(file_path):
             self.logger.error(f"The file '{file_path}' does not exist.")
@@ -47,8 +43,7 @@ class FileHandler:
                 # Read the file as TSV with UTF-8 encoding
                 df = pd.read_csv(file_path, sep='\t', encoding='utf-8')
                 self.logger.debug(f"Methylation DataFrame columns before processing: {df.columns.tolist()}")
-
-                # Ensure the first column is 'Gene_Code' (case-insensitive and trimmed)
+                # Ensure the first column is 'Gene_Code' (case-insensitive)
                 first_col = df.columns[0].strip().lower()
                 if first_col != 'gene_code':
                     original_first_col = df.columns[0]
@@ -61,18 +56,16 @@ class FileHandler:
                 self.logger.info(f"Successfully uploaded methylation file '{file_name}'.")
 
             elif file_type == 'gene_mapping':
-                # Read the gene mapping file as TSV with UTF-8 encoding, ensure it has at least two columns
+                # Read the gene mapping file as TSV with UTF-8 encoding and take only the first two columns
                 df = pd.read_csv(file_path, sep='\t', encoding='utf-8')
                 self.logger.debug(f"Gene Mapping DataFrame columns before processing: {df.columns.tolist()}")
                 if df.shape[1] < 2:
                     error_message = f"Gene mapping file '{file_name}' must have at least two columns."
                     self.logger.error(error_message)
                     raise ValueError(error_message)
-                # Assume first column is gene code name and second column is actual gene name
                 df = df.iloc[:, :2]
-                df.columns = ['Gene_Code', 'Actual_Gene_Name']  # Standardize column names
+                df.columns = ['Gene_Code', 'Actual_Gene_Name']
                 self.logger.debug(f"Gene Mapping DataFrame columns after renaming: {df.columns.tolist()}")
-                # Check for duplicate Gene_Code entries
                 if df['Gene_Code'].duplicated().any():
                     duplicate_genes = df[df['Gene_Code'].duplicated()]['Gene_Code'].unique()
                     error_message = f"Gene mapping file '{file_name}' contains duplicate Gene_Code entries: {', '.join(duplicate_genes)}"
@@ -82,6 +75,7 @@ class FileHandler:
                 self.logger.info(f"Successfully uploaded gene mapping file '{file_name}'.")
 
             elif file_type == 'gene_expression':
+                # Read the gene expression file as TSV with UTF-8 encoding
                 df = pd.read_csv(file_path, sep='\t', encoding='utf-8')
                 self.logger.debug(f"Gene Expression DataFrame columns before processing: {df.columns.tolist()}")
                 first_col = df.columns[0].strip().lower()
@@ -99,6 +93,13 @@ class FileHandler:
                     raise ValueError(error_message)
                 self.gene_expression_df = df
                 self.logger.info(f"Successfully uploaded gene expression file '{file_name}'.")
+
+            elif file_type == 'phenotype':
+                # Read the phenotype file as TSV with UTF-8 encoding
+                df = pd.read_csv(file_path, sep='\t', encoding='utf-8')
+                self.logger.debug(f"Phenotype DataFrame columns: {df.columns.tolist()}")
+                self.phenotype_df = df
+                self.logger.info(f"Successfully uploaded phenotype file '{file_name}'.")
 
             else:
                 error_message = f"Unknown file type: {file_type}"
@@ -119,15 +120,12 @@ class FileHandler:
     def merge_files(self, zero_percent: float = 0) -> tuple:
         """
         Merges methylation data with gene mapping data based on gene code names.
-
+        
         Parameters:
-            zero_percent (float): The maximum allowable percentage of zeros in any row.
-
+            zero_percent (float): Maximum allowable percentage of zeros in any row.
+        
         Returns:
             tuple: (cleaned DataFrame, number of rows removed)
-
-        Raises:
-            ValueError: If required files are missing or merging fails.
         """
         if self.methylation_df is None:
             error_message = "No methylation file uploaded. Please upload a methylation file."
@@ -140,7 +138,6 @@ class FileHandler:
 
         self.logger.info("Merging methylation data with gene mapping data.")
         try:
-            # Use DataMerger to merge and clean the data
             cleaned_df, rows_removed = self.merger.merge_and_clean(
                 methylation_df=self.methylation_df,
                 gene_mapping_df=self.gene_mapping_df,
@@ -156,6 +153,15 @@ class FileHandler:
             raise ValueError(error_message)
 
     def clean_gene_expression_df(self, zero_percent: float = 0) -> tuple:
+        """
+        Cleans the gene expression DataFrame.
+        
+        Parameters:
+            zero_percent (float): Maximum allowable percentage of zeros in any row.
+        
+        Returns:
+            tuple: (cleaned gene expression DataFrame, number of rows removed)
+        """
         if self.gene_expression_df is None:
             error_message = "No gene expression file uploaded. Please upload a gene expression file."
             self.logger.error(error_message)

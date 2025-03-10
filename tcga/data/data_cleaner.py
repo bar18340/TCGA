@@ -22,7 +22,7 @@ class DataCleaner:
         self.logger.debug(f"Data columns identified for cleaning: {data_columns}")
 
         replacements = ['NA', 'na', '.', 0]
-        cleaned_df[data_columns] = cleaned_df[data_columns].replace(replacements, np.nan)
+        cleaned_df.loc[:, data_columns] = cleaned_df.loc[:, data_columns].replace(replacements, np.nan)
         self.logger.debug(f"Replaced {replacements} with NaN in data columns.")
 
         condition_all_empty = cleaned_df[data_columns].isna().all(axis=1)
@@ -30,10 +30,10 @@ class DataCleaner:
         cleaned_df = cleaned_df[~condition_all_empty]
         self.logger.debug(f"Removed {rows_removed_empty} rows where all data columns are NaN.")
 
-        cleaned_df[data_columns] = cleaned_df[data_columns].apply(pd.to_numeric, errors='coerce')
+        cleaned_df.loc[:, data_columns] = cleaned_df.loc[:, data_columns].apply(pd.to_numeric, errors='coerce')
         self.logger.debug("Converted data columns to numeric types, coercing errors to NaN.")
 
-        cleaned_df[data_columns] = cleaned_df[data_columns].fillna(0)
+        cleaned_df.loc[:, data_columns] = cleaned_df.loc[:, data_columns].fillna(0)
         self.logger.debug("Replaced remaining NaN values with 0 in data columns.")
 
         zero_counts = (cleaned_df[data_columns] == 0).sum(axis=1)
