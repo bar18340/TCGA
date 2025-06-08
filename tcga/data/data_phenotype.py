@@ -1,66 +1,69 @@
-import pandas as pd
+import polars as pl
 from tcga.utils.logger import setup_logger
 
 class DataPhenotype:
     def __init__(self, logger=None):
         self.logger = logger if logger else setup_logger()
 
-    def get_characteristics(self, phenotype_df: pd.DataFrame) -> list:
+    def get_characteristics(self, phenotype_df: pl.DataFrame) -> list:
         """
-        Returns a list of phenotype characteristics (all header names except the first column).
+        Returns all phenotype characteristics except the first column (patient IDs).
         """
-        # Skip the first column (patient IDs)
-        characteristics = list(phenotype_df.columns[1:])
+        characteristics = phenotype_df.columns[1:]
         self.logger.debug(f"Extracted phenotype characteristics: {characteristics}")
         return characteristics
 
-    def merge_into_files(self, final_meth: pd.DataFrame, final_expr: pd.DataFrame,
-                           phenotype_df: pd.DataFrame, selected_chars: list) -> tuple:
+    def merge_into_files(self, final_meth: pl.DataFrame, final_expr: pl.DataFrame,
+                         phenotype_df: pl.DataFrame, selected_chars: list) -> tuple:
         """
-        For each selected phenotype characteristic, adds a new row at the top of both final_meth and final_expr.
-        
-        - For methylation: New row has first cell empty, second cell the phenotype name,
-          and subsequent cells filled with the phenotype value (matched by patient).
-        - For gene expression: New row has first cell set to the phenotype name and the remaining cells the phenotype values.
-        
-        Patient matching is performed by comparing patient IDs from the phenotype file (first column)
-        with the headers:
-          • In final_meth, patients are in columns from index 2 onward.
-          • In final_expr, patients are in columns from index 1 onward.
+        Adds rows for selected phenotype characteristics to both methylation and expression files.
+        Each row contains a characteristic and its values for matching patients.
+        Missing values are left as empty strings.
         """
-        # Make a copy and ensure patient IDs are strings and stripped
-        phenotype_df = phenotype_df.copy()
-        phenotype_df.iloc[:, 0] = phenotype_df.iloc[:, 0].astype(str).str.strip()
-        # Build a dictionary keyed by patient ID with their phenotype data
-        phen_dict = phenotype_df.set_index(phenotype_df.columns[0]).to_dict('index')
+        id_col = phenotype_df.columns[0]
+        phen = phenotype_df.select([id_col] + selected_chars).with_columns([
+            pl.col(id_col).cast(pl.Utf8).str.strip_chars()
+        ])
 
-        # Get patient headers from the final outputs
-        meth_patients = list(final_meth.columns[2:])  # from third column onward
-        expr_patients = list(final_expr.columns[1:])    # from second column onward
+        # Identify patient columns in methylation and expression
+        meth_patient_cols = final_meth.columns[2:]
+        expr_patient_cols = final_expr.columns[1:]
 
-        new_rows_meth = []
-        new_rows_expr = []
+        # Construct phenotype rows for methylation
+        meth_rows = []
         for char in selected_chars:
-            # For methylation: new row with empty first cell, second cell is characteristic name
-            row_meth = ["", char]
-            for patient in meth_patients:
-                patient_val = phen_dict.get(str(patient).strip(), {}).get(char, "")
-                row_meth.append(patient_val)
-            new_rows_meth.append(row_meth)
-            
-            # For gene expression: new row with first cell is characteristic name
-            row_expr = [char]
-            for patient in expr_patients:
-                patient_val = phen_dict.get(str(patient).strip(), {}).get(char, "")
-                row_expr.append(patient_val)
-            new_rows_expr.append(row_expr)
+            row = ["", str(char)]
+            for patient in meth_patient_cols:
+                val = phen.filter(pl.col(id_col) == str(patient).strip())[char].to_list()
+                row.append(str(val[0]) if val else "")
+            meth_rows.append(row)
 
-        # Create DataFrames for the new rows (using the same columns as the final outputs)
-        df_new_meth = pd.DataFrame(new_rows_meth, columns=final_meth.columns)
-        df_new_expr = pd.DataFrame(new_rows_expr, columns=final_expr.columns)
+        expr_rows = []
+        for char in selected_chars:
+            row = [str(char)]
+            for patient in expr_patient_cols:
+                val = phen.filter(pl.col(id_col) == str(patient).strip())[char].to_list()
+                row.append(str(val[0]) if val else "")
+            expr_rows.append(row)
 
-        self.logger.info(f"Created {len(selected_chars)} phenotype rows.")
-        # Prepend the new rows to the final DataFrames
-        updated_meth = pd.concat([df_new_meth, final_meth], ignore_index=True)
-        updated_expr = pd.concat([df_new_expr, final_expr], ignore_index=True)
+        # Ensure all values are strings
+        meth_rows = [[str(cell) for cell in row] for row in meth_rows]
+        expr_rows = [[str(cell) for cell in row] for row in expr_rows]
+
+        df_new_meth = pl.DataFrame(meth_rows, schema=final_meth.columns, orient="row")
+        df_new_expr = pl.DataFrame(expr_rows, schema=final_expr.columns, orient="row")
+
+        # Cast patient columns to string before merging
+        meth_cast = final_meth.with_columns([
+            pl.col(col).cast(pl.Utf8) for col in meth_patient_cols
+        ])
+        expr_cast = final_expr.with_columns([
+            pl.col(col).cast(pl.Utf8) for col in expr_patient_cols
+        ])
+
+        # Append phenotype rows to top of methylation and expression DataFrames
+        updated_meth = pl.concat([df_new_meth, meth_cast], how="vertical")
+        updated_expr = pl.concat([df_new_expr, expr_cast], how="vertical")
+
+        self.logger.info(f"Prepended {len(selected_chars)} phenotype rows to methylation and expression files.")
         return updated_meth, updated_expr

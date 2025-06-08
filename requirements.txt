@@ -10,3 +10,7 @@ tzdata==2024.2
 et-xmlfile==2.0.0
 six==1.17.0
 pyasn1==0.6.1
+polars==0.18.0
+flask==2.3.2
+flaskwebgui==0.3.1
+pyinstaller==5.8.0
