@@ -16,9 +16,9 @@ class DataCleaner:
         self.logger.debug(f"Data columns identified for cleaning: {data_columns}")
 
         cleaned_df = filtered_df.with_columns([
-            pl.col(col)
-            .cast(pl.Utf8)
-            .replace(["NA", "na", "."], None)
+            pl.when(pl.col(col).cast(pl.Utf8).is_in(["NA", "na", "."]))
+            .then(None)
+            .otherwise(pl.col(col))
             .cast(pl.Float64)
             .fill_null(0.0)
             .alias(col)
