@@ -22,7 +22,7 @@ class DataPhenotype:
         """
         id_col = phenotype_df.columns[0]
         phen = phenotype_df.select([id_col] + selected_chars).with_columns([
-            pl.col(id_col).cast(pl.Utf8).str.strip_chars()
+            pl.col(id_col).cast(pl.Utf8).str.strip_chars(" \t\r\n")
         ])
 
         # Identify patient columns in methylation and expression

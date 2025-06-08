@@ -46,8 +46,9 @@ class DataCleaner:
         data_columns = gene_expression_df.columns[1:]
 
         filtered_df = gene_expression_df.filter(
-            pl.col(gene_col).is_not_null() & (pl.col(gene_col).cast(pl.Utf8).str.strip_chars() != "")
+            pl.col(gene_col).is_not_null() & (pl.col(gene_col).cast(pl.Utf8).str.strip_chars(" \t\r\n") != "")
         )
+
         rows_removed_invalid = initial_row_count - filtered_df.shape[0]
 
         cleaned_df = filtered_df.with_columns([

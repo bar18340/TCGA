@@ -1,36 +1,28 @@
-import os
-import socket
-from flaskwebgui import FlaskUI
-from threading import Thread
+import webview
 from tcga_web_app.app import app
+from threading import Thread
 
+class Api:
+    def select_folder(self):
+        return webview.windows[0].create_file_dialog(webview.FOLDER_DIALOG)
 
-def find_free_port():
-    """Find a free localhost port."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
-        return s.getsockname()[1]
-
-
-def run_flask(port):
-    os.environ["PORT"] = str(port)
-    app.run(debug=False, port=port, use_reloader=False)
-
+def start_flask():
+    print("✅ Flask app initialized")
+    app.run(debug=False, port=5000, use_reloader=False)
 
 if __name__ == '__main__':
-    port = find_free_port()
-    thread = Thread(target=run_flask, args=(port,))
-    thread.daemon = True
-    thread.start()
+    flask_thread = Thread(target=start_flask, daemon=True)
+    flask_thread.start()
 
-    FlaskUI(
-        app=app,
-        server="flask",
-        port=port,
+    api = Api()
+
+    window = webview.create_window(
+        title="TCGA Data Merger Tool",
+        url="http://127.0.0.1:5000",
         width=1200,
-        height=800,
-        fullscreen=False,
-        browser_path="C:/Program Files/Google/Chrome/Application/chrome.exe" 
-            if os.path.exists("C:/Program Files/Google/Chrome/Application/chrome.exe") 
-            else None
-    ).run()
+        height=950,
+        resizable=True,
+        js_api=api
+    )
+
+    webview.start(gui=None, debug=False, http_server=True)

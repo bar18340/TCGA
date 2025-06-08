@@ -60,6 +60,14 @@
               Hold Ctrl (Windows) or Cmd (Mac) to select multiple.
             </small>
           </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Save Output Folder</label>
+            <div class="input-group">
+              <input type="text" id="saveFolder" name="save_folder" class="form-control" readonly>
+              <button type="button" class="btn btn-outline-secondary" onclick="pickFolder()">Browse</button>
+            </div>
+          </div>
         </div>
 
         <!-- Cleaning Settings -->
@@ -77,7 +85,7 @@
           <a href="/reset" class="btn btn-red btn-lg">Reset</a>
         </div>
 
-        <!-- Output Links -->
+         <!-- Output Links -->
         {% if success and outputs %}
           <div class="alert alert-success mt-4 text-center">
             <h5>✅ Output CSV Files</h5>
@@ -94,8 +102,19 @@
   </form>
 </div>
 
-<!-- JavaScript for dynamic phenotype preview -->
 <script>
+function pickFolder() {
+  if (window.pywebview) {
+    window.pywebview.api.select_folder().then(function(result) {
+      if (result && result.length > 0) {
+        document.getElementById("saveFolder").value = result[0];
+      }
+    });
+  } else {
+    alert("Folder picker is only available in the desktop app.");
+  }
+}
+
 document.getElementById('phenotypeFile').addEventListener('change', function (event) {
   const fileInput = event.target;
   const file = fileInput.files[0];
