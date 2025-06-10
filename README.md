@@ -32,8 +32,7 @@ TCGA/
 ├── tcga_web_app/ ← Flask web interface
 │   ├── app.py
 │   ├── templates/index.html
-│   ├── uploads/ ← Temporary input files
-│   └── outputs/ ← Final .csv outputs
+│   └── static/style.css
 │
 ├── README.md
 │

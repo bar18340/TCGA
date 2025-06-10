@@ -1,0 +1,52 @@
+body {
+  padding: 15px;
+  font-size: 14px;
+}
+
+.container {
+  max-width: 900px;
+}
+
+.rounded-box {
+  border-radius: 6px;
+  padding: 1rem;
+  border: 1px solid #ccc;
+  margin-bottom: 15px;
+}
+
+.form-label {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.form-control,
+.form-select {
+  font-size: 13px;
+  padding: 0.35rem 0.5rem;
+}
+
+.btn {
+  font-size: 13px;
+  padding: 0.4rem 0.8rem;
+}
+
+.btn-green {
+  background-color: #28a745;
+  color: white;
+  font-size: 16px;
+}
+
+.btn-red {
+  background-color: #dc3545;
+  color: white;
+  font-size: 16px;
+}
+
+h2,
+h5 {
+  font-size: 16px;
+}
+
+small {
+  font-size: 12px;
+}

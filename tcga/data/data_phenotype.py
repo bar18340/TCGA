@@ -54,12 +54,10 @@ class DataPhenotype:
         df_new_expr = pl.DataFrame(expr_rows, schema=final_expr.columns, orient="row")
 
         # Cast patient columns to string before merging
-        meth_cast = final_meth.with_columns([
-            pl.col(col).cast(pl.Utf8) for col in meth_patient_cols
-        ])
-        expr_cast = final_expr.with_columns([
-            pl.col(col).cast(pl.Utf8) for col in expr_patient_cols
-        ])
+        # Cast ALL columns to string to avoid dtype mismatch
+        meth_cast = final_meth.select([pl.col(col).cast(pl.Utf8) for col in final_meth.columns])
+        expr_cast = final_expr.select([pl.col(col).cast(pl.Utf8) for col in final_expr.columns])
+
 
         # Append phenotype rows to top of methylation and expression DataFrames
         updated_meth = pl.concat([df_new_meth, meth_cast], how="vertical")

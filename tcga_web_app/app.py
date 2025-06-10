@@ -1,17 +1,14 @@
 import os
-import uuid
-import shutil
 import polars as pl
 from flask import Flask, render_template, request, redirect, flash
 from tcga.controller.controller import Controller
 from tcga.utils.logger import setup_logger
+import tempfile
 
 # --- Flask App Config ---
 app = Flask(__name__)
-print("✅ Flask app initialized")
+# print("✅ Flask app initialized")
 app.secret_key = 'tcga_secret_key'
-UPLOAD_FOLDER = 'tcga_web_app/uploads'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # --- Use existing TCGA controller logic ---
 logger = setup_logger()
@@ -26,10 +23,29 @@ def index():
             mapping_file = request.files.get('mapping_file')
             expression_file = request.files.get('expression_file')
             phenotype_file = request.files.get('phenotype_file')
-            save_path = request.form.get('save_folder', 'tcga_web_app/outputs')
+            # --- Validate presence of at least one file ---
+            if not any([methylation_file, mapping_file, expression_file, phenotype_file]):
+                flash("❌ Please upload at least one input file.", "error")
+                return redirect('/')
+            # Validate minimum input file requirements
+            if phenotype_file and not any([methylation_file, mapping_file, expression_file]):
+                flash("❌ A phenotype file must be uploaded together with a gene expression file or methylation + mapping files.", "error")
+                return redirect('/')
+            if methylation_file and not mapping_file:
+                flash("❌ A methylation file must be uploaded together with a mapping file.", "error")
+                return redirect('/')
+            if mapping_file and not methylation_file:
+                flash("❌ A mapping file must be uploaded together with a methylation file.", "error")
+                return redirect('/')
+            save_path = request.form.get('save_folder')
+            if not save_path:
+                flash("❌ Please choose a destination folder to save output files.", "error")
+                return redirect('/')
             zero_threshold = float(request.form.get('zero_threshold', 100))
             selected_phenos = request.form.getlist('phenos')
             
+            base_filename = request.form.get('output_filename', '').strip() or 'merged_output'
+
             # --- Save uploaded files ---
             file_paths = {}
             for label, file in {
@@ -39,9 +55,12 @@ def index():
                 'phenotype': phenotype_file
             }.items():
                 if file and file.filename:
-                    save_file = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}_{file.filename}")
-                    file.save(save_file)
-                    file_paths[label] = save_file
+                    # Save file to a temporary file on disk
+                    temp = tempfile.NamedTemporaryFile(delete=False, suffix=".csv", mode='wb')
+                    temp.write(file.read())
+                    temp.flush()
+                    temp.close()
+                    file_paths[label] = temp.name
 
             # --- Run TCGA controller logic ---
             result = controller.process_files(
@@ -54,18 +73,52 @@ def index():
             )
 
             # --- Save final outputs to .csv ---
+            if not result or not isinstance(result, tuple):
+                flash("❌ Internal error: Unexpected result structure from processing.", "error")
+                return redirect('/')
             df1, _, df2, _ = result if len(result) == 4 else (*result, None, None)
 
             output_paths = []
-            if df1 is not None:
-                df1_path = os.path.join(save_path, "methylation_output.csv")
-                df1.write_csv(df1_path)
-                output_paths.append(df1_path)
 
-            if df2 is not None:
-                df2_path = os.path.join(save_path, "expression_output.csv")
-                df2.write_csv(df2_path)
-                output_paths.append(df2_path)
+            def get_unique_filename(folder, base, suffix):
+                counter = 1
+                filename = f"{base}_{suffix}.csv"
+                path = os.path.join(folder, filename)
+                while os.path.exists(path):
+                    filename = f"{base}_{suffix}_{counter}.csv"
+                    path = os.path.join(folder, filename)
+                    counter += 1
+                return path
+            
+            if df1 is not None and df2 is None:
+                if 'gene_expression' in file_paths:
+                    # Single expression file cleaned
+                    out_expr_path = get_unique_filename(save_path, base_filename, 'expression')
+                    df1.write_csv(out_expr_path)
+                    output_paths.append({"label": os.path.basename(out_expr_path)})
+                else:
+                    # Methylation + mapping cleaned
+                    out_meth_path = get_unique_filename(save_path, base_filename, 'methylation')
+                    df1.write_csv(out_meth_path)
+                    output_paths.append({"label": os.path.basename(out_meth_path)})
+
+            elif df1 is not None and df2 is not None:
+                # Both methylation and expression processed
+                out_meth_path = get_unique_filename(save_path, base_filename, 'methylation')
+                out_expr_path = get_unique_filename(save_path, base_filename, 'expression')
+                df1.write_csv(out_meth_path)
+                df2.write_csv(out_expr_path)
+                output_paths.extend([
+                    {"label": os.path.basename(out_meth_path)},
+                    {"label": os.path.basename(out_expr_path)}
+                ])
+
+            # --- Clean up temp files ---
+            for path in file_paths.values():
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
 
             return render_template('index.html', success=True, outputs=output_paths)
 
@@ -78,9 +131,7 @@ def index():
 
 @app.route('/reset')
 def reset():
-    shutil.rmtree(UPLOAD_FOLDER, ignore_errors=True)
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    flash("App has been reset.", 'info')
+    # flash("App has been reset.", 'info')
     return redirect('/')
 
 @app.route('/preview_phenotype', methods=['POST'])
@@ -96,10 +147,10 @@ def preview_phenotype():
     except Exception as e:
         return {"error": str(e)}, 500
 
-def initialize_flask():
-    print("✅ Flask app initialized")
+# def initialize_flask():
+    # print("✅ Flask app initialized")
 
 if __name__ == '__main__':
-    print("✅ Flask app running directly")
-    initialize_flask()
+    # print("✅ Flask app running directly")
+    # initialize_flask()
     app.run(debug=True)
