@@ -29,7 +29,7 @@ TCGA/
 │       ├── __init__.py
 │       └── logger.py
 │
-├── tcga_web_app/ ← Flask web interface
+├── tcga_web_app/
 │   ├── app.py
 │   ├── templates/index.html
 │   └── static/style.css
@@ -52,6 +52,5 @@ python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-### 2. Launch Flask App
-python -m tcga_web_app.app
-Then visit: http://127.0.0.1:5000
+### 2. Launch App
+python gui_launcher.py
