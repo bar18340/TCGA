@@ -4,6 +4,7 @@ from flask import Flask, render_template, request, redirect, flash
 from tcga.controller.controller import Controller
 from tcga.utils.logger import setup_logger
 import tempfile
+from waitress import serve
 
 # --- Flask App Config ---
 app = Flask(__name__)
@@ -146,11 +147,3 @@ def preview_phenotype():
         return {"columns": headers}
     except Exception as e:
         return {"error": str(e)}, 500
-
-# def initialize_flask():
-    # print("✅ Flask app initialized")
-
-if __name__ == '__main__':
-    # print("✅ Flask app running directly")
-    # initialize_flask()
-    app.run(debug=True)

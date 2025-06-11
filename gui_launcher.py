@@ -7,7 +7,6 @@ class Api:
         return webview.windows[0].create_file_dialog(webview.FOLDER_DIALOG)
 
 def start_flask():
-    # print("✅ Flask app initialized")
     app.run(debug=False, port=5000, use_reloader=False)
 
 if __name__ == '__main__':
