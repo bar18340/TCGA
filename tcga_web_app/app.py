@@ -1,13 +1,26 @@
-import os
+import os, sys
 import polars as pl
 from flask import Flask, render_template, request, redirect, flash
 from tcga.controller.controller import Controller
 from tcga.utils.logger import setup_logger
 import tempfile
-from waitress import serve
 
 # --- Flask App Config ---
-app = Flask(__name__)
+# If we're running as a PyInstaller bundle, sys.frozen is True
+if getattr(sys, 'frozen', False):
+    base_path = sys._MEIPASS
+else:
+    base_path = os.path.abspath(os.path.dirname(__file__))
+
+# Point Flask at the temp‐extracted templates and static folders
+template_folder = os.path.join(base_path, 'templates')
+static_folder   = os.path.join(base_path, 'static')
+
+app = Flask(
+    __name__,
+    template_folder=template_folder,
+    static_folder=static_folder
+)
 # print("✅ Flask app initialized")
 app.secret_key = 'tcga_secret_key'
 

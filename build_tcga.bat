@@ -1,23 +1,22 @@
 @echo off
-echo Killing any running TCGA app...
-taskkill /f /im tcga.exe >nul 2>&1
+REM — Activate the virtualenv (batch version)
+call .venv\Scripts\activate.bat
 
-echo Cleaning previous build folders...
-rmdir /s /q build
-rmdir /s /q dist
-del tcga.spec
+REM — Clean up previous builds
+if exist build    rd /s /q build
+if exist dist     rd /s /q dist
+if exist tcga.spec del /f /q tcga.spec
 
-echo Removing all __pycache__ folders...
-for /d /r %%i in (__pycache__) do (
-    if exist "%%i" (
-        echo Deleting %%i
-        rmdir /s /q "%%i"
-    )
-)
-
-echo Starting PyInstaller build...
-pyinstaller --clean --noconfirm --noconsole --icon=tcga_icon.ico ^
+REM — Bundle into one windowed EXE
+echo Building TCGA.exe…
+pyinstaller ^
+  --clean --noconfirm --onefile --windowed ^
   --name tcga ^
-  --add-data "tcga_web_app/templates;tcga_web_app/templates" ^
-  --add-data "tcga_web_app/static;tcga_web_app/static" ^
+  --icon=tcga_icon.ico ^
+  --add-data "tcga_web_app\templates;templates" ^
+  --add-data "tcga_web_app\static;static" ^
   gui_launcher.py
+
+echo.
+echo ✅ Build complete. Your EXE is here: dist\tcga.exe
+pause
