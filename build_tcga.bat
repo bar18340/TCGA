@@ -1,5 +1,3 @@
-taskkill /f /im tcga.exe >nul 2>&1
-
 @echo off
 echo Killing any running TCGA app...
 taskkill /f /im tcga.exe >nul 2>&1
@@ -18,7 +16,7 @@ for /d /r %%i in (__pycache__) do (
 )
 
 echo Starting PyInstaller build...
-pyinstaller --clean --noconfirm --noconsole ^
+pyinstaller --clean --noconfirm --noconsole --icon=tcga_icon.ico ^
   --name tcga ^
   --add-data "tcga_web_app/templates;tcga_web_app/templates" ^
   --add-data "tcga_web_app/static;tcga_web_app/static" ^
