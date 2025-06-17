@@ -1,48 +1,66 @@
-# tcga/interface/gui.py
-
 import PySimpleGUI as sg
-from tcga.data.file_handler import FileHandler
-from tcga.utils.logger import setup_logger
 import os
+import polars as pl
+import time
+from tcga.controller.controller import Controller
+from tcga.utils.logger import setup_logger
 
 class GUI:
     def __init__(self, logger):
         self.logger = logger
-        self.logger.info("Initializing GUI")
-        self.file_handler = FileHandler(logger)  # Pass logger to FileHandler
+        self.controller = Controller(logger)
 
+        # Optional: use a modern theme
+        sg.theme("LightGrey5")
+
+        # ---------- Input Files Section ----------
+        input_frame = sg.Frame("🧬 Input Files", [
+            [sg.Text('Methylation File:', size=(18, 1)),
+             sg.Input(key='-MET_FILE-', enable_events=True, size=(50, 1)),
+             sg.FileBrowse('Browse')],
+            [sg.Text('Gene Mapping File:', size=(18, 1)),
+             sg.Input(key='-GENE_MAP_FILE-', enable_events=True, size=(50, 1)),
+             sg.FileBrowse('Browse')],
+            [sg.Text('Gene Expression File:', size=(18, 1)),
+             sg.Input(key='-GENE_EXP_FILE-', enable_events=True, size=(50, 1)),
+             sg.FileBrowse('Browse')],
+            [sg.Text('Phenotype File:', size=(18, 1)),
+             sg.Input(key='-PHEN_FILE-', enable_events=True, size=(50, 1)),
+             sg.FileBrowse('Browse')],
+            [sg.Button('Load Phenotype Characteristics', key='-LOAD_PHEN-', button_color=('white', 'blue'))],
+            [sg.Listbox(values=[], size=(60, 5), key='-PHEN_CHARS-', select_mode=sg.LISTBOX_SELECT_MODE_MULTIPLE, visible=False)]
+        ], pad=(10, 10))
+
+        # ---------- Output Settings Section ----------
+        output_frame = sg.Frame("💾 Output Settings", [
+            [sg.Text('Save Directory:', size=(18, 1)),
+             sg.Input(key='-SAVE_DIR-', size=(50, 1)),
+             sg.FolderBrowse('Browse')],
+            [sg.Text('Output File Name:', size=(18, 1)),
+             sg.InputText('merged_data.csv', key='-OUTPUT_FILE-', size=(50, 1))],
+            [sg.Text('Clean rows with (%) of Zeros:', size=(30, 1)),
+             sg.InputText('100', key='-ZERO_PERCENT-', size=(6, 1))]
+        ], pad=(10, 10))
+
+        # ---------- Action Buttons and Status ----------
+        action_row = [
+            sg.Button('Save Merged Data', size=(20, 1), button_color=('white', 'green')),
+            sg.Button('Exit', size=(10, 1), button_color=('white', 'red'))
+        ]
+
+        status_row = [
+            sg.Text('', size=(80, 3), key='-STATUS-', text_color='green', font=('Segoe UI', 10), expand_x=True)
+        ]
+
+        # ---------- Assemble the full layout ----------
         self.layout = [
-            [sg.Text('TCGA - Data Merger Tool', font=('Helvetica', 16, 'bold'), text_color='blue', justification='center', expand_x=True)],
-            
-            # Methylation File Selection
-            [sg.Text('Methylation File:', size=(20, 1)), 
-             sg.Input(key='-MET_FILE-', enable_events=True, size=(45,1)), 
-             sg.FileBrowse(button_text='Browse', tooltip='Select Methylation TSV File')],
-            
-            # Gene Mapping File Selection
-            [sg.Text('Gene Mapping File:', size=(20, 1)), 
-             sg.Input(key='-GENE_MAP_FILE-', enable_events=True, size=(45,1)), 
-             sg.FileBrowse(button_text='Browse', tooltip='Select Gene Mapping TSV File')],
-            
-            # Save Directory Selection
-            [sg.Text('Save Directory:', size=(20, 1)), 
-             sg.Input(key='-SAVE_DIR-', enable_events=True, size=(45,1)), 
-             sg.FolderBrowse(button_text='Browse', tooltip='Select Directory to Save Merged CSV')],
-            
-            # Output File Name Input
-            [sg.Text('Output File Name:', size=(20, 1)), 
-             sg.InputText('merged_methylation_data.csv', key='-OUTPUT_FILE-', size=(45,1), tooltip='Enter desired name for the merged CSV file')],
-            
-            # Maximum Percentage of Zeros Input
-            [sg.Text('Clean rows with (%) of Zeros (0-100):', size=(30,1)),
-             sg.InputText('100', key='-ZERO_PERCENT-', size=(10,1), tooltip='Enter a number between 0 and 100')],
-            
-            # Action Buttons
-            [sg.Button('Save Merged Data', size=(20, 1), button_color=('white', 'green')),
-             sg.Button('Exit', size=(10, 1), button_color=('white', 'red'))],
-            
-            # Status Message
-            [sg.Text('', size=(80, 3), key='-STATUS-', text_color='green', font=('Helvetica', 10), expand_x=True)]
+            [sg.Text('🧪 TCGA Data Merger Tool', font=('Helvetica', 18, 'bold'),
+                     justification='center', expand_x=True, text_color='black')],
+            [input_frame],
+            [output_frame],
+            [sg.HSeparator()],
+            action_row,
+            status_row
         ]
 
         self.window = sg.Window('TCGA Data Merger', self.layout, finalize=True, resizable=True)
@@ -54,130 +72,111 @@ class GUI:
             if event in (sg.WINDOW_CLOSED, 'Exit'):
                 self.logger.info("Exiting GUI")
                 break
+
+            elif event == '-LOAD_PHEN-':
+                phen_file = values['-PHEN_FILE-']
+                if phen_file:
+                    try:
+                        df = pl.read_csv(phen_file, separator='\t', infer_schema_length=10000)
+                        characteristics = self.controller.phenotype_processor.get_characteristics(df)
+                        self.window['-PHEN_CHARS-'].update(values=characteristics, visible=True)
+                        self.logger.info(f"Loaded phenotype characteristics: {characteristics}")
+                    except Exception as e:
+                        sg.popup_error(f"Error loading phenotype file: {e}")
+                        self.logger.error(f"Error loading phenotype file: {e}")
+                else:
+                    sg.popup_error("Please select a phenotype file first.")
+
             elif event == 'Save Merged Data':
                 self.handle_save(values)
+
         self.window.close()
         self.logger.info("GUI window closed")
-        self.file_handler.cleanup()
+        self.controller.file_handler.cleanup()
 
     def handle_save(self, values):
-        self.logger.info("Save Merged Data button clicked")
+        start = time.time()
 
+        self.logger.info("Save Merged Data button clicked")
         methylation_path = values['-MET_FILE-']
         gene_mapping_path = values['-GENE_MAP_FILE-']
+        gene_expression_path = values['-GENE_EXP_FILE-']
+        phenotype_path = values['-PHEN_FILE-']
+        selected_phenotypes = values['-PHEN_CHARS-'] if values['-PHEN_CHARS-'] else []
         save_dir = values['-SAVE_DIR-']
         output_file_name = values['-OUTPUT_FILE-'].strip()
         zero_percent = values['-ZERO_PERCENT-'].strip()
 
-        # Validate that all fields are selected
-        if not methylation_path:
-            sg.popup_error("Please select a Methylation File.")
-            self.logger.warning("Methylation File not selected.")
-            self.update_status("Error: Methylation File not selected.", error=True)
-            return
-        if not gene_mapping_path:
-            sg.popup_error("Please select a Gene Mapping File.")
-            self.logger.warning("Gene Mapping File not selected.")
-            self.update_status("Error: Gene Mapping File not selected.", error=True)
-            return
-        if not save_dir:
-            sg.popup_error("Please select a Save Directory.")
-            self.logger.warning("Save Directory not selected.")
-            self.update_status("Error: Save Directory not selected.", error=True)
-            return
-        if not output_file_name:
-            sg.popup_error("Please enter a name for the output file.")
-            self.logger.warning("Output File Name not provided.")
-            self.update_status("Error: Output File Name not provided.", error=True)
-            return
-        if not zero_percent:
-            sg.popup_error("Please enter the Maximum Percentage of Zeros.")
-            self.logger.warning("Maximum Percentage of Zeros not provided.")
-            self.update_status("Error: Maximum Percentage of Zeros not provided.", error=True)
-            return
-
-        # Validate the zero_percent input
+        # Validate % of zeros
         try:
             zero_percent_value = float(zero_percent)
             if not (0 <= zero_percent_value <= 100):
                 raise ValueError
         except ValueError:
             sg.popup_error("Maximum Percentage of Zeros must be a number between 0 and 100.")
-            self.logger.warning("Invalid Maximum Percentage of Zeros input.")
-            self.update_status("Error: Invalid Maximum Percentage of Zeros input.", error=True)
+            self.logger.warning("Invalid zero percent input.")
+            self.update_status("Error: Invalid zero percent input.", error=True)
             return
 
-        # Ensure the file name has a .csv extension
-        if not output_file_name.lower().endswith('.csv'):
-            output_file_name += '.csv'
+        if not output_file_name:
+            output_file_name = "merged_data.csv"
 
-        # Validate the file name for illegal characters
-        if any(char in output_file_name for char in r'<>:"/\|?*'):
-            sg.popup_error("The file name contains invalid characters. Please avoid <>:\"/\\|?*")
-            self.logger.warning("Invalid characters found in Output File Name.")
-            self.update_status("Error: Invalid characters in Output File Name.", error=True)
-            return
+        base_name = os.path.splitext(output_file_name)[0]  # strip any extension
+        csv_name1 = f"{base_name}_methylation.csv"
+        csv_name2 = f"{base_name}_expression.csv"
 
         try:
-            # Upload both files
-            methylation_file_name = self.file_handler.upload_file(methylation_path, 'methylation')
-            gene_mapping_file_name = self.file_handler.upload_file(gene_mapping_path, 'gene_mapping')
+            result = self.controller.process_files(
+                methylation_path=methylation_path if methylation_path else None,
+                gene_mapping_path=gene_mapping_path if gene_mapping_path else None,
+                gene_expression_path=gene_expression_path if gene_expression_path else None,
+                phenotype_path=phenotype_path if phenotype_path else None,
+                selected_phenotypes=selected_phenotypes,
+                zero_percent=zero_percent_value
+            )
 
-            # Merge and clean the files, passing the zero_percent_value
-            merged_df, rows_removed = self.file_handler.merge_files(zero_percent=zero_percent_value)
+            df1, _, df2, _ = result if len(result) == 4 else (*result, None, None)
 
-            if merged_df.empty:
-                sg.popup_error("Merged DataFrame is empty. Please check the uploaded files.")
-                self.logger.error("Merged DataFrame is empty.")
-                self.update_status("Error: Merged DataFrame is empty.", error=True)
-                return
+            # Build output paths
+            csv_path1 = os.path.join(save_dir, csv_name1)
+            csv_path2 = os.path.join(save_dir, csv_name2)
 
-            # Define merged file path
-            merged_file_path = os.path.join(save_dir, output_file_name)
-
-            # Handle duplicate file names by appending a counter
             counter = 1
-            base_name, extension = os.path.splitext(output_file_name)
-            while os.path.exists(merged_file_path):
-                merged_file_name = f"{base_name}_{counter}{extension}"
-                merged_file_path = os.path.join(save_dir, merged_file_name)
+            while os.path.exists(csv_path1):
+                csv_path1 = os.path.join(save_dir, f"{base_name}_methylation_{counter}.csv")
                 counter += 1
 
-            # Save merged DataFrame as CSV
-            merged_df.to_csv(merged_file_path, index=False)
-            self.logger.info(f"Merged data saved as '{os.path.basename(merged_file_path)}' in '{save_dir}'.")
+            counter = 1
+            while df2 is not None and os.path.exists(csv_path2):
+                csv_path2 = os.path.join(save_dir, f"{base_name}_expression_{counter}.csv")
+                counter += 1
 
-            # Determine the final file name (with counter if appended)
-            final_file_name = os.path.basename(merged_file_path)
+            if df1 is not None:
+                df1.write_csv(csv_path1)
 
-            # Update status in GUI with rows removed
-            if rows_removed > 0:
-                status_message = f"Merged data saved as '{final_file_name}'.\nRemoved {rows_removed} rows exceeding {zero_percent_value}% zeros."
-            else:
-                status_message = f"Merged data saved as '{final_file_name}'. No rows exceeded {zero_percent_value}% zeros."
-            self.update_status(status_message, success=True)
+            if df2 is not None:
+                df2.write_csv(csv_path2)
 
-        except ValueError as ve:
-            sg.popup_error(f"Error merging files: {ve}\nPlease check the log for more details.")
-            self.logger.error(f"Error merging files: {ve}")
-            self.update_status(f"Error: {ve}", error=True)
+            end = time.time()
+            elapsed = end - start
+
+            message = f"CSV file saved: {os.path.basename(csv_path1)}"
+            if df2 is not None:
+                message += f"\nCSV file saved: {os.path.basename(csv_path2)}"
+            message += f"\nProcessing time: {elapsed:.2f} seconds"
+                
+            self.update_status(message, success=True)
+
         except Exception as e:
-            sg.popup_error(f"An unexpected error occurred: {e}\nPlease check the log for more details.")
-            self.logger.error(f"Unexpected error during merging: {e}")
-            self.update_status(f"Error: {e}", error=True)
+            sg.popup_error(f"Error: {e}")
+            self.logger.error(f"Unexpected error: {e}")
+            self.update_status(str(e), error=True)
+
 
     def update_status(self, message, success=False, error=False):
-        """
-        Updates the status message in the GUI.
-
-        Parameters:
-            message (str): The message to display.
-            success (bool): If True, displays the message in black.
-            error (bool): If True, displays the message in red.
-        """
         if success:
             self.window['-STATUS-'].update(message, text_color='black')
         elif error:
             self.window['-STATUS-'].update(message, text_color='red')
         else:
-            self.window['-STATUS-'].update(message)
+            self.window['-STATUS-'].update(message, text_color='black')
