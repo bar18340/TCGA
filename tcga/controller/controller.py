@@ -5,7 +5,18 @@ from tcga.data.data_phenotype import DataPhenotype
 from tcga.utils.logger import setup_logger
 
 class Controller:
+    """
+    Main controller for orchestrating TCGA data processing.
+
+    This class manages the workflow for uploading, validating, cleaning, aligning, and merging
+    methylation, gene mapping, gene expression, and phenotype files. It supports all valid
+    combinations of these files and coordinates the use of FileHandler and DataPhenotype utilities.
+    """
+
     def __init__(self, logger=None):
+        """
+        Initializes the Controller instance.
+        """
         self.logger = logger if logger else setup_logger()
         self.file_handler = FileHandler(logger=self.logger)
         self.phenotype_processor = DataPhenotype(logger=self.logger)
@@ -15,6 +26,20 @@ class Controller:
         """
         Handles all input file combinations (6 scenarios).
         Validates, cleans, aligns, and merges data as needed.
+
+        Args:
+            methylation_path (str, optional): Path to the methylation file.
+            gene_mapping_path (str, optional): Path to the gene mapping file.
+            gene_expression_path (str, optional): Path to the gene expression file.
+            phenotype_path (str, optional): Path to the phenotype file.
+            selected_phenotypes (list, optional): List of phenotype columns to include.
+            zero_percent (float, optional): Threshold for filtering rows with excessive zero values.
+
+        Returns:
+            tuple: Depending on the scenario, returns cleaned/merged DataFrames and row removal counts.
+
+        Raises:
+            ValueError: If file combinations are invalid or merging/cleaning fails.
         """
         # Prevent invalid input combinations early
         if methylation_path and not gene_mapping_path:

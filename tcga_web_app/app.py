@@ -1,3 +1,25 @@
+"""
+TCGA Web Application (Flask)
+
+This Flask app provides a web interface for uploading, validating, processing, and saving TCGA data files.
+It supports methylation, gene mapping, gene expression, and phenotype files, and uses the TCGA Controller
+to orchestrate all data processing logic.
+
+Key Features:
+- Handles file uploads and validation for all supported TCGA data types.
+- Validates required file combinations (e.g., methylation requires mapping).
+- Uses temporary files for uploaded data to avoid memory issues.
+- Delegates all processing to the Controller, which manages cleaning, merging, and alignment.
+- Saves processed outputs to user-specified folders with unique filenames.
+- Provides user feedback via Flask flash messages.
+- Supports previewing phenotype file columns via AJAX.
+
+Usage:
+- Start the Flask app and navigate to the root URL.
+- Upload the required files and specify output options.
+- Download processed files from the output location.
+"""
+
 import os, sys
 import polars as pl
 from flask import Flask, render_template, request, redirect, flash
@@ -30,6 +52,17 @@ controller = Controller(logger=logger)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    """
+    Main route for file upload and processing.
+
+    - Handles both GET (form display) and POST (file upload/processing) requests.
+    - Validates file combinations and user input.
+    - Saves uploaded files to temporary disk locations.
+    - Calls the TCGA Controller to process files.
+    - Saves processed outputs to the user-specified folder.
+    - Cleans up all temporary files.
+    - Renders the main template with results or error messages.
+    """
     if request.method == 'POST':
         try:
             # --- Handle uploaded files ---
@@ -145,11 +178,21 @@ def index():
 
 @app.route('/reset')
 def reset():
+    """
+    Route to reset the application state (simply redirects to main page).
+    """
     # flash("App has been reset.", 'info')
     return redirect('/')
 
 @app.route('/preview_phenotype', methods=['POST'])
 def preview_phenotype():
+    """
+    Route to preview phenotype file columns before processing.
+
+    - Accepts a phenotype file upload via POST.
+    - Returns a JSON response with the column headers (excluding patient ID).
+    - Used for dynamic UI updates (AJAX).
+    """
     file = request.files.get('phenotype_file')
     if not file:
         return {"error": "No file uploaded"}, 400

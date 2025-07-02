@@ -2,12 +2,33 @@ import polars as pl
 from tcga.utils.logger import setup_logger
 
 class DataPhenotype:
+    """
+    Provides utilities for handling phenotype data in TCGA workflows.
+
+    This class allows extraction of phenotype characteristics (columns) and merging phenotype information
+    into methylation and gene expression DataFrames as additional rows for downstream analysis.
+
+    Notes:
+    - The first column of the phenotype file is assumed to be patient IDs.
+    - All phenotype values are prepended as rows (not columns) to the output files, matching patient columns by ID.
+    - Missing phenotype values for a patient are represented as empty strings.
+    - All output values are cast to string to avoid dtype mismatches during concatenation.
+    """
     def __init__(self, logger=None):
+        """
+        Initializes the DataPhenotype instance.
+        """
         self.logger = logger if logger else setup_logger()
 
     def get_characteristics(self, phenotype_df: pl.DataFrame) -> list:
         """
         Returns all phenotype characteristics except the first column (patient IDs).
+
+        Args:
+            phenotype_df (pl.DataFrame): The phenotype DataFrame.
+
+        Returns:
+            list: List of phenotype characteristic column names (excluding patient ID).
         """
         characteristics = phenotype_df.columns[1:]
         self.logger.debug(f"Extracted phenotype characteristics: {characteristics}")
@@ -17,8 +38,23 @@ class DataPhenotype:
                          phenotype_df: pl.DataFrame, selected_chars: list) -> tuple:
         """
         Adds rows for selected phenotype characteristics to both methylation and expression files.
+
         Each row contains a characteristic and its values for matching patients.
         Missing values are left as empty strings.
+
+        Args:
+            final_meth (pl.DataFrame): The final methylation DataFrame (patients as columns).
+            final_expr (pl.DataFrame): The final gene expression DataFrame (patients as columns).
+            phenotype_df (pl.DataFrame): The phenotype DataFrame.
+            selected_chars (list): List of phenotype characteristics to add.
+
+        Returns:
+            tuple: (updated_meth, updated_expr) where both are polars DataFrames with phenotype rows prepended.
+
+        Notes:
+        - Patient columns in methylation start from index 2 (after 'Gene_Code', 'Actual_Gene_Name').
+        - Patient columns in expression start from index 1 (after 'Gene_Name').
+        - All columns are cast to string before concatenation to avoid dtype errors.
         """
         id_col = phenotype_df.columns[0]
         phen = phenotype_df.select([id_col] + selected_chars).with_columns([

@@ -5,7 +5,17 @@ from tcga.data.data_merger import DataMerger
 from tcga.data.data_cleaner import DataCleaner
 
 class FileHandler:
+    """
+    Handles the uploading, validation, cleaning, and merging of TCGA data files.
+
+    This class manages the lifecycle of methylation, gene mapping, gene expression, and phenotype files.
+    It provides methods to upload and validate files, clean and merge data, and perform resource cleanup.
+    """
+
     def __init__(self, logger=None):
+        """
+        Initializes the FileHandler instance.
+        """
         self.methylation_df = None
         self.gene_mapping_df = None
         self.gene_expression_df = None
@@ -17,7 +27,20 @@ class FileHandler:
     def upload_file(self, file_path: str, file_type: str) -> str:
         """
         Uploads and prepares a file for processing based on its type.
-        Uses Polars to infer schema and sanitize columns.
+
+        Reads the file using Polars, infers schema, and sanitizes columns as needed.
+        Handles methylation, gene mapping, gene expression, and phenotype files.
+
+        Args:
+            file_path (str): Path to the file to upload.
+            file_type (str): Type of the file ('methylation', 'gene_mapping', 'gene_expression', 'phenotype').
+
+        Returns:
+            str: The name of the uploaded file.
+
+        Raises:
+            FileNotFoundError: If the file does not exist.
+            ValueError: If the file is invalid or contains duplicate/incorrect columns.
         """
         if not os.path.exists(file_path):
             self.logger.error(f"The file '{file_path}' does not exist.")
@@ -103,7 +126,16 @@ class FileHandler:
 
     def merge_files(self, zero_percent: float = 0) -> tuple:
         """
-        Cleans and merges methylation + gene mapping files.
+        Cleans and merges methylation and gene mapping files.
+
+        Args:
+            zero_percent (float): Threshold for filtering rows with excessive zero values.
+
+        Returns:
+            tuple: (cleaned DataFrame, number of rows removed)
+
+        Raises:
+            ValueError: If required files are missing or merging fails.
         """
         if self.methylation_df is None:
             raise ValueError("No methylation file uploaded. Please upload a methylation file.")
@@ -123,7 +155,16 @@ class FileHandler:
 
     def clean_gene_expression_df(self, zero_percent: float = 0) -> tuple:
         """
-        Cleans the gene expression file based on zero-value threshold.
+        Cleans the gene expression file based on a zero-value threshold.
+
+        Args:
+            zero_percent (float): Threshold for filtering rows with excessive zero values.
+
+        Returns:
+            tuple: (cleaned DataFrame, number of rows removed)
+
+        Raises:
+            ValueError: If the gene expression file is missing or cleaning fails.
         """
         if self.gene_expression_df is None:
             raise ValueError("No gene expression file uploaded. Please upload a gene expression file.")
@@ -135,5 +176,12 @@ class FileHandler:
             raise ValueError(f"Error cleaning gene expression data: {e}")
 
     def cleanup(self):
+        """
+        Cleans up any resources or temporary files used by the FileHandler instance.
+
+        This method is a placeholder for future cleanup logic. Currently, it does not remove any files,
+        but it can be extended to handle deletion of temporary files or other resource management tasks
+        as needed.
+        """
         self.logger.debug("Cleanup called. No temporary files to remove.")
         pass

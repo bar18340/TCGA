@@ -2,10 +2,34 @@ import polars as pl
 from tcga.utils.logger import setup_logger
 
 class DataCleaner:
+    """
+    Provides methods for cleaning and filtering TCGA data files.
+
+    This class includes utilities to clean merged methylation/mapping DataFrames and gene expression DataFrames,
+    handling missing values, invalid gene names, and filtering rows based on a zero-value threshold.
+    """
+
     def __init__(self, logger=None):
+        """
+        Initializes the DataCleaner instance.
+        """
         self.logger = logger if logger else setup_logger()
 
     def clean_merged_df(self, merged_df: pl.DataFrame, zero_percent: float = 0) -> tuple:
+        """
+        Cleans a merged methylation and mapping DataFrame.
+
+        - Removes rows where 'Actual_Gene_Name' is '.'.
+        - Converts 'NA', 'na', and '.' values to 0.0 in data columns.
+        - Filters out rows where the percentage of zero values exceeds the given threshold.
+
+        Args:
+            merged_df (pl.DataFrame): The merged DataFrame to clean.
+            zero_percent (float): Threshold for filtering rows with excessive zero values.
+
+        Returns:
+            tuple: (cleaned DataFrame, total number of rows removed)
+        """
         initial_row_count = merged_df.shape[0]
         self.logger.debug(f"Initial rows: {initial_row_count}")
 
@@ -39,6 +63,20 @@ class DataCleaner:
         return retained_df, total_rows_removed
 
     def clean_gene_expression_df(self, gene_expression_df: pl.DataFrame, zero_percent: float = 0) -> tuple:
+        """
+        Cleans a gene expression DataFrame.
+
+        - Removes rows with missing or empty gene names.
+        - Converts 'NA', 'na', and '.' values to 0.0 in data columns.
+        - Filters out rows where the percentage of zero values exceeds the given threshold.
+
+        Args:
+            gene_expression_df (pl.DataFrame): The gene expression DataFrame to clean.
+            zero_percent (float): Threshold for filtering rows with excessive zero values.
+
+        Returns:
+            tuple: (cleaned DataFrame, total number of rows removed)
+        """
         initial_row_count = gene_expression_df.shape[0]
         self.logger.debug(f"Initial rows in Gene Expression DataFrame: {initial_row_count}")
 

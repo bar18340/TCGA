@@ -3,11 +3,47 @@ from tcga.utils.logger import setup_logger
 from tcga.data.data_cleaner import DataCleaner
 
 class DataMerger:
+    """
+    Handles merging and cleaning of methylation and gene mapping DataFrames.
+
+    This class is responsible for:
+    - Validating the presence and types of required columns in both methylation and gene mapping DataFrames.
+    - Ensuring 'Gene_Code' columns are present and of string type in both DataFrames.
+    - Checking for and reporting duplicate 'Gene_Code' entries in the gene mapping DataFrame.
+    - Merging the methylation and gene mapping DataFrames on the 'Gene_Code' column.
+    - Reordering columns so that 'Gene_Code' and 'Actual_Gene_Name' appear first in the merged DataFrame.
+    - Delegating further cleaning (removal of invalid rows, handling of missing values, filtering by zero threshold) to the DataCleaner class.
+    """
     def __init__(self, logger=None):
+        """
+        Initializes the DataMerger instance.
+        """
         self.logger = logger if logger else setup_logger()
         self.cleaner = DataCleaner(logger=self.logger)
 
     def merge_and_clean(self, methylation_df: pl.DataFrame, gene_mapping_df: pl.DataFrame, zero_percent: float = 0) -> tuple:
+        """
+        Merges methylation and gene mapping DataFrames on 'Gene_Code' and cleans the result.
+
+        Steps:
+        - Validates that both DataFrames contain a 'Gene_Code' column.
+        - Ensures 'Gene_Code' columns are of string type.
+        - Checks for duplicate 'Gene_Code' entries in the gene mapping DataFrame.
+        - Merges the DataFrames on 'Gene_Code' (left join).
+        - Reorders columns to place 'Gene_Code' and 'Actual_Gene_Name' first.
+        - Cleans the merged DataFrame using DataCleaner (removes invalid rows, handles missing values, applies zero threshold).
+
+        Args:
+            methylation_df (pl.DataFrame): The methylation DataFrame.
+            gene_mapping_df (pl.DataFrame): The gene mapping DataFrame.
+            zero_percent (float): Threshold for filtering rows with excessive zero values.
+
+        Returns:
+            tuple: (cleaned DataFrame, number of rows removed)
+
+        Raises:
+            ValueError: If required columns are missing, duplicates are found, or merging/cleaning fails.
+        """
         try:
             self.logger.info("Starting the merging process.")
 

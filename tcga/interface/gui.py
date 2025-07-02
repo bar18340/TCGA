@@ -1,3 +1,23 @@
+# This class is not used in the current implementation, but it can be useful for future enhancements.
+#
+# GUI for TCGA Data Merger Tool
+#
+# This module provides a PySimpleGUI-based graphical user interface for the TCGA data processing pipeline.
+# It allows users to select input files (methylation, gene mapping, gene expression, phenotype), configure output options,
+# preview phenotype characteristics, and save merged/cleaned data files.
+#
+# Notes:
+# - The GUI is not currently integrated into the main application flow, but can be enabled for desktop use.
+# - All file processing is delegated to the Controller class, ensuring consistency with the web app.
+# - The GUI supports dynamic preview of phenotype columns and robust error/status reporting.
+# - Output files are saved with unique names to avoid overwriting.
+# - The GUI is designed for extensibility and can be enhanced with additional features as needed.
+#
+# Usage:
+#   logger = setup_logger()
+#   gui = GUI(logger)
+#   gui.run()
+
 import PySimpleGUI as sg
 import os
 import polars as pl
@@ -6,7 +26,26 @@ from tcga.controller.controller import Controller
 from tcga.utils.logger import setup_logger
 
 class GUI:
+    """
+    PySimpleGUI-based graphical interface for the TCGA Data Merger Tool.
+
+    Features:
+    - File selection for all supported TCGA data types.
+    - Output directory and filename configuration.
+    - Zero-value row filtering threshold input.
+    - Dynamic preview and selection of phenotype characteristics.
+    - Status and error reporting.
+    - Delegates all processing to the Controller for consistency.
+
+    Notes:
+    - Not used in the current web-based workflow, but can be enabled for desktop use.
+    - All output files are saved as CSVs with unique names.
+    - Designed for easy extension and integration.
+    """
     def __init__(self, logger):
+        """
+        Initializes the GUI, sets up the layout, and prepares the Controller.
+        """
         self.logger = logger
         self.controller = Controller(logger)
 
@@ -66,6 +105,13 @@ class GUI:
         self.window = sg.Window('TCGA Data Merger', self.layout, finalize=True, resizable=True)
 
     def run(self):
+        """
+        Starts the GUI event loop and handles all user interactions.
+
+        - Handles file selection, phenotype preview, and data saving.
+        - Provides status and error feedback to the user.
+        - Cleans up resources on exit.
+        """
         self.logger.info("Starting GUI event loop")
         while True:
             event, values = self.window.read()
@@ -95,6 +141,17 @@ class GUI:
         self.controller.file_handler.cleanup()
 
     def handle_save(self, values):
+        """
+        Handles the 'Save Merged Data' button event.
+
+        - Validates user input.
+        - Calls the Controller to process files.
+        - Saves output CSVs with unique names.
+        - Updates the status area with results or errors.
+
+        Args:
+            values (dict): Dictionary of current GUI input values.
+        """
         start = time.time()
 
         self.logger.info("Save Merged Data button clicked")
@@ -174,6 +231,14 @@ class GUI:
 
 
     def update_status(self, message, success=False, error=False):
+        """
+        Updates the status area in the GUI with a message.
+
+        Args:
+            message (str): The message to display.
+            success (bool): If True, displays message in black.
+            error (bool): If True, displays message in red.
+        """
         if success:
             self.window['-STATUS-'].update(message, text_color='black')
         elif error:

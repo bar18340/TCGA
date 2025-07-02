@@ -1,3 +1,26 @@
+<!--
+  TCGA Data Merger Tool - Main Web Interface
+
+  This HTML template provides the user interface for uploading, validating, and processing TCGA data files
+  via the Flask web application. It supports methylation, gene mapping, gene expression, and phenotype files,
+  and allows users to configure cleaning and output options.
+
+  Key Features:
+  - File upload fields for all supported TCGA data types.
+  - Dynamic phenotype characteristic selection (AJAX preview of columns).
+  - Cleaning options (zero-value row threshold).
+  - Output folder and filename configuration.
+  - Displays user feedback and error messages using Bootstrap alerts.
+  - Shows download/output links for processed files.
+  - Integrates with desktop app for folder picking (if available).
+
+  Notes:
+  - Uses Bootstrap 5 for styling and layout.
+  - JavaScript handles AJAX preview of phenotype columns and folder picking.
+  - The form submits to the Flask '/' route for processing.
+  - Output links and messages are rendered based on Flask context variables.
+-->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -97,6 +120,12 @@
 </div>
 
 <script>
+  /*
+  JavaScript for folder picking (desktop app) and dynamic phenotype column preview.
+
+  - pickFolder(): Uses pywebview API to select a folder if running as a desktop app.
+  - Phenotype file input triggers AJAX POST to /preview_phenotype, populating the phenotype select box.
+*/
 function pickFolder() {
   if (window.pywebview) {
     window.pywebview.api.select_folder().then(function(result) {
