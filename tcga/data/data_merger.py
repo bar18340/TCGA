@@ -19,81 +19,25 @@ class DataMerger:
         Initializes the DataMerger instance.
         """
         self.logger = logger if logger else setup_logger()
-        self.cleaner = DataCleaner(logger=self.logger)
 
-    def merge_and_clean(self, methylation_df: pl.DataFrame, gene_mapping_df: pl.DataFrame, zero_percent: float = 0) -> tuple:
+    def merge(self, methylation_df: pl.DataFrame, gene_mapping_df: pl.DataFrame) -> pl.DataFrame:
         """
         Merges methylation and gene mapping DataFrames on 'Gene_Code' and cleans the result.
-
-        Steps:
-        - Validates that both DataFrames contain a 'Gene_Code' column.
-        - Ensures 'Gene_Code' columns are of string type.
-        - Checks for duplicate 'Gene_Code' entries in the gene mapping DataFrame.
-        - Merges the DataFrames on 'Gene_Code' (left join).
-        - Reorders columns to place 'Gene_Code' and 'Actual_Gene_Name' first.
-        - Cleans the merged DataFrame using DataCleaner (removes invalid rows, handles missing values, applies zero threshold).
-
-        Args:
-            methylation_df (pl.DataFrame): The methylation DataFrame.
-            gene_mapping_df (pl.DataFrame): The gene mapping DataFrame.
-            zero_percent (float): Threshold for filtering rows with excessive zero values.
-
-        Returns:
-            tuple: (cleaned DataFrame, number of rows removed)
-
-        Raises:
-            ValueError: If required columns are missing, duplicates are found, or merging/cleaning fails.
         """
-        try:
-            self.logger.info("Starting the merging process.")
+        if 'Gene_Code' not in methylation_df.columns or 'Gene_Code' not in gene_mapping_df.columns:
+            raise ValueError("Both methylation and gene mapping files must contain a 'Gene_Code' column.")
 
-            if 'Gene_Code' not in methylation_df.columns:
-                error_message = "'Gene_Code' column missing in methylation DataFrame."
-                self.logger.error(error_message)
-                raise ValueError(error_message)
-            if 'Gene_Code' not in gene_mapping_df.columns:
-                error_message = "'Gene_Code' column missing in gene mapping DataFrame."
-                self.logger.error(error_message)
-                raise ValueError(error_message)
-
-            # Ensure both are strings
-            methylation_df = methylation_df.with_columns([
-                pl.col("Gene_Code").cast(pl.Utf8).alias("Gene_Code")
-            ])
-            gene_mapping_df = gene_mapping_df.with_columns([
-                pl.col("Gene_Code").cast(pl.Utf8).alias("Gene_Code")
-            ])
-
-            # Check for duplicate gene codes in gene mapping
-            if gene_mapping_df.select("Gene_Code").is_duplicated().any():
-                duplicates = gene_mapping_df.filter(pl.col("Gene_Code").is_duplicated()).select("Gene_Code").unique()
-                duplicate_list = duplicates.to_series().to_list()
-                error_message = f"Gene mapping contains duplicate Gene_Code entries: {', '.join(duplicate_list)}"
-                self.logger.error(error_message)
-                raise ValueError(error_message)
-
-            # Merge on 'Gene_Code'
-            merged_df = methylation_df.join(gene_mapping_df, on='Gene_Code', how='left')
-            self.logger.debug("DataFrames merged successfully on 'Gene_Code'.")
-
-            # Reorder columns: 'Gene_Code', 'Actual_Gene_Name', followed by the rest
-            cols = merged_df.columns
-            actual_gene_name = "Actual_Gene_Name"
-
-            if actual_gene_name in cols:
-                cols = ["Gene_Code", "Actual_Gene_Name"] + [col for col in cols if col not in ("Gene_Code", "Actual_Gene_Name")]
-                merged_df = merged_df.select(cols)
-                self.logger.debug("Reordered columns to place 'Actual_Gene_Name' after 'Gene_Code'.")
-            else:
-                self.logger.warning(f"'{actual_gene_name}' column not found in merged DataFrame.")
-
-            # Clean merged data
-            cleaned_df, rows_removed = self.cleaner.clean_merged_df(merged_df, zero_percent=zero_percent)
-            self.logger.info("Data cleaning completed.")
-
-            return cleaned_df, rows_removed
-
-        except Exception as e:
-            error_message = f"Error during merging and cleaning: {e}"
+        if gene_mapping_df.select("Gene_Code").is_duplicated().any():
+            duplicates = gene_mapping_df.filter(pl.col("Gene_Code").is_duplicated()).select("Gene_Code").unique()
+            error_message = f"Gene mapping contains duplicate Gene_Code entries: {', '.join(map(str, duplicates.to_series().to_list()))}"
             self.logger.error(error_message)
             raise ValueError(error_message)
+
+        merged_df = methylation_df.join(gene_mapping_df, on='Gene_Code', how='inner')
+
+        cols = merged_df.columns
+        if "Actual_Gene_Name" in cols:
+            new_order = ["Gene_Code", "Actual_Gene_Name"] + [col for col in cols if col not in ["Gene_Code", "Actual_Gene_Name"]]
+            merged_df = merged_df.select(new_order)
+            
+        return merged_df
