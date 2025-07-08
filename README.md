@@ -3,41 +3,6 @@
 A fast, modular Python tool that helps researchers clean and merge TCGA data files locally through a user-friendly web interface.
 Supports methylation data, gene mapping, gene expression, and phenotype information — and outputs clean, aligned `.csv` files.
 
-## 📁 Project Structure
-TCGA/
-│
-├── tcga/
-│   ├── __init__.py
-│   ├── main.py
-│   │
-│   ├── interface/
-│   │   ├── __init__.py
-│   │   └── gui.py
-│   │
-│   ├── controller/
-│   │   ├── __init__.py
-│   │   └── controller.py
-│   │
-│   ├── data/
-│   │   ├── __init__.py
-│   │   ├── file_handler.py
-│   │   ├── data_cleaner.py
-│   │   ├── data_merger.py
-│   │   └── data_phenotype.py
-│   │
-│   └── utils/
-│       ├── __init__.py
-│       └── logger.py
-│
-├── tcga_web_app/
-│   ├── app.py
-│   ├── templates/index.html
-│   └── static/style.css
-│
-├── README.md
-│
-└── requirements.txt
-
 ## ⚙️ Features
 ✅ Upload multiple types of files  
 ✅ Auto-match genes across files  
@@ -46,11 +11,29 @@ TCGA/
 ✅ Save cleaned data as `.csv`  
 ✅ Runs entirely offline
 
-## 🚀 Run the App (Developer Mode)
-### 1. Install dependencies
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+## 🚀 Usage (for End-Users)
+1.  Download the latest release
+2.  Unzip the folder to a location on your PC.
+3.  Double-click the **`tcga.exe`** to launch the application.
 
-### 2. Launch App
+## 🛠️ Developer Setup
+To run the application from the source code:
+Clone the repository and install the required dependencies.
+```bash
+# Create a virtual environment
+python -m venv .venv
+.venv\Scripts\activate # On Windows
+# Install dependencies
+pip install -r requirements.txt
+```
+### Running the Application
+Launch the app using the `gui_launcher.py` script.
+```bash
 python gui_launcher.py
+```
+### Running Tests
+The project includes a comprehensive test suite. To run the tests:
+```bash
+pip install pytest pytest-mock
+pytest
+```

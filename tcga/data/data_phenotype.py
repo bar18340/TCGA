@@ -30,11 +30,11 @@ class DataPhenotype:
         Returns:
             list: List of phenotype characteristic column names (excluding patient ID).
         """
-        characteristics = phenotype_df.columns[1:]
-        self.logger.debug(f"Extracted phenotype characteristics: {characteristics}")
-        return characteristics
+        if phenotype_df.is_empty() or phenotype_df.shape[1] < 2:
+            return []
+        return phenotype_df.columns[1:]
 
-    def merge_into_files(self, final_meth: pl.DataFrame, final_expr: pl.DataFrame,
+    def merge_into_files(self, final_meth_df: pl.DataFrame, final_expr_df: pl.DataFrame,
                          phenotype_df: pl.DataFrame, selected_chars: list) -> tuple:
         """
         Adds rows for selected phenotype characteristics to both methylation and expression files.
@@ -56,48 +56,50 @@ class DataPhenotype:
         - Patient columns in expression start from index 1 (after 'Gene_Name').
         - All columns are cast to string before concatenation to avoid dtype errors.
         """
+        if not selected_chars or phenotype_df is None:
+            return final_meth_df, final_expr_df
+
         id_col = phenotype_df.columns[0]
-        phen = phenotype_df.select([id_col] + selected_chars).with_columns([
-            pl.col(id_col).cast(pl.Utf8).str.strip_chars(" \t\r\n")
-        ])
+        
+        # Prepare phenotype lookup by converting patient IDs to a dictionary for fast access
+        phenotype_lookup = phenotype_df.select([id_col] + selected_chars).to_dicts()
+        pheno_map = {str(row[id_col]).strip(): row for row in phenotype_lookup}
 
-        # Identify patient columns in methylation and expression
-        meth_patient_cols = final_meth.columns[2:]
-        expr_patient_cols = final_expr.columns[1:]
+        # Process Methylation File
+        if final_meth_df is not None:
+            meth_patient_cols = final_meth_df.columns[2:]
+            meth_rows = []
+            for char in selected_chars:
+                row_data = {"Gene_Code": "", "Actual_Gene_Name": char}
+                for patient in meth_patient_cols:
+                    patient_id = str(patient).strip()
+                    # Look up patient in the map. provide empty string if not found or value is None
+                    patient_pheno = pheno_map.get(patient_id, {})
+                    row_data[patient] = str(patient_pheno.get(char, "") or "")
+                meth_rows.append(row_data)
 
-        # Construct phenotype rows for methylation
-        meth_rows = []
-        for char in selected_chars:
-            row = ["", str(char)]
-            for patient in meth_patient_cols:
-                val = phen.filter(pl.col(id_col) == str(patient).strip())[char].to_list()
-                row.append(str(val[0]) if val else "")
-            meth_rows.append(row)
+            df_new_meth = pl.DataFrame(meth_rows)
+            # Ensure column order matches before concatenation
+            df_new_meth = df_new_meth.select(final_meth_df.columns)
+            final_meth_df = pl.concat([df_new_meth, final_meth_df.cast(pl.Utf8)], how="vertical")
+            self.logger.info(f"Added {len(selected_chars)} phenotype rows to methylation data.")
 
-        expr_rows = []
-        for char in selected_chars:
-            row = [str(char)]
-            for patient in expr_patient_cols:
-                val = phen.filter(pl.col(id_col) == str(patient).strip())[char].to_list()
-                row.append(str(val[0]) if val else "")
-            expr_rows.append(row)
+        # Process Expression File
+        if final_expr_df is not None:
+            expr_gene_col = final_expr_df.columns[0]
+            expr_patient_cols = final_expr_df.columns[1:]
+            expr_rows = []
+            for char in selected_chars:
+                row_data = {expr_gene_col: char}
+                for patient in expr_patient_cols:
+                    patient_id = str(patient).strip()
+                    patient_pheno = pheno_map.get(patient_id, {})
+                    row_data[patient] = str(patient_pheno.get(char, "") or "")
+                expr_rows.append(row_data)
 
-        # Ensure all values are strings
-        meth_rows = [[str(cell) for cell in row] for row in meth_rows]
-        expr_rows = [[str(cell) for cell in row] for row in expr_rows]
-
-        df_new_meth = pl.DataFrame(meth_rows, schema=final_meth.columns, orient="row")
-        df_new_expr = pl.DataFrame(expr_rows, schema=final_expr.columns, orient="row")
-
-        # Cast patient columns to string before merging
-        # Cast ALL columns to string to avoid dtype mismatch
-        meth_cast = final_meth.select([pl.col(col).cast(pl.Utf8) for col in final_meth.columns])
-        expr_cast = final_expr.select([pl.col(col).cast(pl.Utf8) for col in final_expr.columns])
-
-
-        # Append phenotype rows to top of methylation and expression DataFrames
-        updated_meth = pl.concat([df_new_meth, meth_cast], how="vertical")
-        updated_expr = pl.concat([df_new_expr, expr_cast], how="vertical")
-
-        self.logger.info(f"Prepended {len(selected_chars)} phenotype rows to methylation and expression files.")
-        return updated_meth, updated_expr
+            df_new_expr = pl.DataFrame(expr_rows)
+            df_new_expr = df_new_expr.select(final_expr_df.columns)
+            final_expr_df = pl.concat([df_new_expr, final_expr_df.cast(pl.Utf8)], how="vertical")
+            self.logger.info(f"Added {len(selected_chars)} phenotype rows to expression data.")
+            
+        return final_meth_df, final_expr_df

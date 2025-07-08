@@ -15,97 +15,59 @@ class DataCleaner:
         """
         self.logger = logger if logger else setup_logger()
 
-    def clean_merged_df(self, merged_df: pl.DataFrame, zero_percent: float = 0) -> tuple:
+    def filter_by_zero_percentage(self, df: pl.DataFrame, zero_percent: float, id_cols: list) -> pl.DataFrame:
+        """
+        Public method to filter ANY DataFrame based on the percentage of zero values.
+        """
+        if zero_percent >= 100 or df is None:
+            return df
+            
+        data_columns = [c for c in df.columns if c not in id_cols]
+        if not data_columns:
+            return df
+
+        self.logger.debug(f"Filtering rows with >={zero_percent}% zeros.")
+        
+        zero_sum_expr = sum(pl.col(col) == 0 for col in data_columns)
+        row_zero_percent = (zero_sum_expr / len(data_columns)) * 100
+        
+        keep_mask = row_zero_percent < zero_percent
+        # If the threshold is 0, the condition becomes "keep if percentage is exactly 0".
+        if zero_percent == 0:
+            keep_mask = row_zero_percent == 0
+
+        retained_df = df.filter(keep_mask)
+        
+        rows_removed = df.shape[0] - retained_df.shape[0]
+        if rows_removed > 0:
+            self.logger.info(f"Removed {rows_removed} rows based on zero threshold.")
+            
+        return retained_df
+    
+    def clean_merged_df(self, merged_df: pl.DataFrame) -> pl.DataFrame:
         """
         Cleans a merged methylation and mapping DataFrame.
 
         - Removes rows where 'Actual_Gene_Name' is '.'.
-        - Converts 'NA', 'na', and '.' values to 0.0 in data columns.
-        - Filters out rows where the percentage of zero values exceeds the given threshold.
-
-        Args:
-            merged_df (pl.DataFrame): The merged DataFrame to clean.
-            zero_percent (float): Threshold for filtering rows with excessive zero values.
-
-        Returns:
-            tuple: (cleaned DataFrame, total number of rows removed)
+        - Converts None values to 0.0 in data columns.
         """
-        initial_row_count = merged_df.shape[0]
-        self.logger.debug(f"Initial rows: {initial_row_count}")
+        # 1. Remove rows with invalid gene names
+        cleaned_df = merged_df.filter(pl.col("Actual_Gene_Name") != ".")
+        
+        # 2. Identify patient data columns
+        data_columns = [col for col in cleaned_df.columns if col not in ('Gene_Code', 'Actual_Gene_Name')]
 
-        filtered_df = merged_df.filter(pl.col("Actual_Gene_Name") != ".")
-        rows_removed_dot = initial_row_count - filtered_df.shape[0]
+        # 3. For each data column, replace '.' with null, then cast the whole column to float,
+        cleaning_expressions = [
+            pl.when(pl.col(c).cast(pl.Utf8) == ".")
+                .then(None)
+                .otherwise(pl.col(c))
+                .cast(pl.Float64, strict=False)
+                .fill_null(0.0)
+                .alias(c)
+            for c in data_columns
+        ]
 
-        data_columns = [col for col in filtered_df.columns if col not in ('Gene_Code', 'Actual_Gene_Name')]
-        self.logger.debug(f"Data columns identified for cleaning: {data_columns}")
+        cleaned_df = cleaned_df.with_columns(cleaning_expressions)
+        return cleaned_df
 
-        cleaned_df = filtered_df.with_columns([
-            pl.when(pl.col(col).cast(pl.Utf8).is_in(["NA", "na", "."]))
-            .then(None)
-            .otherwise(pl.col(col))
-            .cast(pl.Float64)
-            .fill_null(0.0)
-            .alias(col)
-            for col in data_columns
-        ])
-
-        zero_sum_expr = sum([pl.col(col) == 0 for col in data_columns])
-        zero_mask = cleaned_df.select(zero_sum_expr)
-        row_zero_percent = zero_mask.to_series() / len(data_columns) * 100
-        keep_mask = row_zero_percent < zero_percent
-        retained_df = cleaned_df.filter(keep_mask)
-        rows_removed_threshold = cleaned_df.shape[0] - retained_df.shape[0]
-
-        final_row_count = retained_df.shape[0]
-        total_rows_removed = rows_removed_dot + rows_removed_threshold
-        self.logger.debug(f"Final rows: {final_row_count}, Total rows removed: {total_rows_removed}")
-
-        return retained_df, total_rows_removed
-
-    def clean_gene_expression_df(self, gene_expression_df: pl.DataFrame, zero_percent: float = 0) -> tuple:
-        """
-        Cleans a gene expression DataFrame.
-
-        - Removes rows with missing or empty gene names.
-        - Converts 'NA', 'na', and '.' values to 0.0 in data columns.
-        - Filters out rows where the percentage of zero values exceeds the given threshold.
-
-        Args:
-            gene_expression_df (pl.DataFrame): The gene expression DataFrame to clean.
-            zero_percent (float): Threshold for filtering rows with excessive zero values.
-
-        Returns:
-            tuple: (cleaned DataFrame, total number of rows removed)
-        """
-        initial_row_count = gene_expression_df.shape[0]
-        self.logger.debug(f"Initial rows in Gene Expression DataFrame: {initial_row_count}")
-
-        gene_col = gene_expression_df.columns[0]
-        data_columns = gene_expression_df.columns[1:]
-
-        filtered_df = gene_expression_df.filter(
-            pl.col(gene_col).is_not_null() & (pl.col(gene_col).cast(pl.Utf8).str.strip_chars(" \t\r\n") != "")
-        )
-
-        rows_removed_invalid = initial_row_count - filtered_df.shape[0]
-
-        cleaned_df = filtered_df.with_columns([
-            pl.when(pl.col(col).cast(pl.Utf8).is_in(["NA", "na", "."]))
-            .then(0.0)
-            .otherwise(pl.col(col).cast(pl.Float64))
-            .alias(col)
-            for col in data_columns
-        ])
-
-        zero_sum_expr = sum([pl.col(col) == 0 for col in data_columns])
-        zero_mask = cleaned_df.select(zero_sum_expr)
-        row_zero_percent = zero_mask.to_series() / len(data_columns) * 100
-        keep_mask = row_zero_percent < zero_percent
-        retained_df = cleaned_df.filter(keep_mask)
-        rows_removed_threshold = cleaned_df.shape[0] - retained_df.shape[0]
-
-        final_row_count = retained_df.shape[0]
-        total_rows_removed = rows_removed_invalid + rows_removed_threshold
-        self.logger.debug(f"Final rows in Gene Expression DataFrame: {final_row_count}, Total rows removed: {total_rows_removed}")
-
-        return retained_df, total_rows_removed

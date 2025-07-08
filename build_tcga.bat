@@ -1,3 +1,5 @@
+set PYTHONDONTWRITEBYTECODE=1
+
 @echo off
 REM — Activate the virtualenv (batch version)
 call .venv\Scripts\activate.bat
@@ -10,7 +12,7 @@ if exist tcga.spec del /f /q tcga.spec
 REM — Bundle into one windowed EXE
 echo Building TCGA.exe…
 pyinstaller ^
-  --clean --noconfirm --onefile --windowed ^
+  --clean --noconfirm --onedir --windowed ^
   --name tcga ^
   --icon=tcga_icon.ico ^
   --add-data "tcga_web_app\templates;templates" ^

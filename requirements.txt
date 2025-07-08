@@ -16,3 +16,4 @@ flaskwebgui==1.1.6
 pyinstaller==6.14.1
 waitress==3.0.2
 pywebview==5.4
+pytest-mock==3.14.1

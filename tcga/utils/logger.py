@@ -33,7 +33,7 @@ def setup_logger(log_file='tcga.log', level=logging.DEBUG):
         ch.setFormatter(formatter)
 
         # Add handlers to the logger
-        logger.addHandler(fh)
-        logger.addHandler(ch)
+        # logger.addHandler(fh)
+        # logger.addHandler(ch)
 
     return logger
