@@ -42,7 +42,7 @@
     {% endif %}
   {% endwith %}
 
-  <form action="/" method="POST" enctype="multipart/form-data">
+  <form action="/" method="POST" enctype="multipart/form-data" onsubmit="showLoading()">
     <div class="row justify-content-center">
       <div class="col-md-8">
 
@@ -99,10 +99,15 @@
 
         <!-- Submit Buttons -->
         <div class="text-center mt-3">
-          <button type="submit" class="btn btn-green btn-lg me-3">💾 Save Merged Data</button>
+          <button type="submit" id="runButton" class="btn btn-green btn-lg me-3">💾 Save Merged Data</button>
           <a href="/reset" class="btn btn-red btn-lg">Reset</a>
         </div>
-
+        <div id="loadingIndicator" class="text-center mt-4" style="display: none;">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2"><strong>Processing files, please wait...</strong><br>This may take a moment for large files.</p>
+        </div>
          <!-- Output Links -->
         {% if success and outputs %}
           <div class="alert alert-success mt-4 text-center">
@@ -176,6 +181,20 @@ document.getElementById('phenotypeFile').addEventListener('change', function (ev
   });
 });
 </script>
+<script>
+  function showLoading() {
+    // Get the button and the spinner div
+    const runButton = document.getElementById('runButton');
+    const loadingIndicator = document.getElementById('loadingIndicator');
 
+    // Show the spinner and disable the button to prevent multiple clicks
+    loadingIndicator.style.display = 'block';
+    runButton.disabled = true;
+    runButton.innerHTML = '💾 Processing...';
+
+    // Allow the form to submit
+    return true;
+  }
+</script>
 </body>
 </html>
