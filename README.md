@@ -63,8 +63,6 @@ Desktop integration via PyWebView
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/bar18340/TCGA.git
 cd TCGA
 
 # Create virtual environment
@@ -78,6 +76,7 @@ pip install -r requirements.txt
 Running from Source
 bash# Launch the desktop application
 python gui_launcher.py
+```
 
 📝 File Format Requirements
 
