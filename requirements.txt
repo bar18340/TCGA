@@ -1,7 +1,8 @@
 filetype==1.2.0
 # PySimpleGUI==5.0.8.3
-pandas==2.2.3
+# pandas==2.2.3
 openpyxl==3.1.5
+xlsx2csv==0.8.2
 rsa==4.9
 numpy==2.2.0
 python-dateutil==2.9.0.post0
@@ -10,10 +11,11 @@ tzdata==2024.2
 et-xmlfile==2.0.0
 six==1.17.0
 pyasn1==0.6.1
-polars==0.19.12
-flask==2.3.2
+polars==1.31.0
+flask==3.1.1
 flaskwebgui==1.1.6
-pyinstaller==6.14.1
+pyinstaller==6.14.2
 waitress==3.0.2
 pywebview==5.4
 pytest-mock==3.14.1
+xlsxwriter==3.2.0

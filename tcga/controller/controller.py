@@ -1,3 +1,4 @@
+import os
 import polars as pl
 from tcga.data.file_handler import FileHandler
 from tcga.data.data_phenotype import DataPhenotype
@@ -45,6 +46,46 @@ class Controller:
         )
             
         return final_meth, final_expr
+
+    def save_results(self, df_meth, df_expr, save_path, base_filename, output_format='csv'):
+        """
+        Saves the processed dataframes to files in the specified format.
+        
+        Args:
+            df_meth: Methylation dataframe
+            df_expr: Expression dataframe
+            save_path: Directory to save files
+            base_filename: Base name for output files
+            output_format: 'csv' or 'excel'
+            
+        Returns:
+            List of saved file paths
+        """
+        output_paths = []
+        
+        def get_unique_filename(folder, base, suffix, extension):
+            counter = 1
+            filename = f"{base}_{suffix}.{extension}"
+            path = os.path.join(folder, filename)
+            while os.path.exists(path):
+                filename = f"{base}_{suffix}_{counter}.{extension}"
+                path = os.path.join(folder, filename)
+                counter += 1
+            return path
+        
+        extension = 'xlsx' if output_format == 'excel' else 'csv'
+        
+        if df_meth is not None:
+            out_meth_path = get_unique_filename(save_path, base_filename, 'methylation', extension)
+            self.file_handler.save_dataframe(df_meth, out_meth_path, output_format)
+            output_paths.append(out_meth_path)
+
+        if df_expr is not None:
+            out_expr_path = get_unique_filename(save_path, base_filename, 'expression', extension)
+            self.file_handler.save_dataframe(df_expr, out_expr_path, output_format)
+            output_paths.append(out_expr_path)
+            
+        return output_paths
 
     # Private Helper Methods for Each Step
 

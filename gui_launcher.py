@@ -100,7 +100,7 @@ if __name__ == '__main__':
             title="TCGA Data Merger Tool",
             url=f"http://127.0.0.1:{port}",
             width=1000,
-            height=700,
+            height=900,
             resizable=True,
             js_api=Api()
         )
