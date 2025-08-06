@@ -82,42 +82,42 @@ python gui_launcher.py
 
 ### Methylation Files:
 
-Tab-separated values
-First column: Gene/Probe IDs
-Subsequent columns: Patient data
+- Tab-separated values
+- First column: Gene/Probe IDs
+- Subsequent columns: Patient data
 
 ### Gene Mapping Files:
 
 Two columns minimum
-Column 1: Gene/Probe IDs (matching methylation)
-Column 2: Actual gene names
+- Column 1: Gene/Probe IDs (matching methylation)
+- Column 2: Actual gene names
 
 ### Expression Files:
 
-First column: Gene names
-Subsequent columns: Expression values per patient
+- First column: Gene names
+- Subsequent columns: Expression values per patient
 
 ### Phenotype Files:
 
-First column: Patient IDs
-Subsequent columns: Clinical characteristics
+- First column: Patient IDs
+- Subsequent columns: Clinical characteristics
 
 ## 📊 Performance Tips
 
-Large files (>50MB): Use CSV format for faster processing
-Memory usage: Close other applications when processing very large datasets
-Optimal threshold: Start with 100% zero threshold, adjust based on your data
+- Large files (>50MB): Use CSV format for faster processing
+- Memory usage: Close other applications when processing very large datasets
+- Optimal threshold: Start with 100% zero threshold, adjust based on your data
 
 ## 🐛 Troubleshooting:
 
 ### Application won't start:
 
-Install Microsoft Edge WebView2 Runtime
-Run as Administrator if permission errors occur
-Check Windows Defender hasn't blocked the executable
+- Install Microsoft Edge WebView2 Runtime
+- Run as Administrator if permission errors occur
+- Check Windows Defender hasn't blocked the executable
 
 ### File processing errors:
 
-Ensure file formats match the requirements above
-Check that methylation files have corresponding mapping files
-Verify patient IDs match across files
+- Ensure file formats match the requirements above
+- Check that methylation files have corresponding mapping files
+- Verify patient IDs match across files
