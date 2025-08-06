@@ -150,6 +150,11 @@ function initializeDragAndDrop() {
         dataTransfer.items.add(files[0]);
         fileInput.files = dataTransfer.files;
         handleFileSelect(files[0], type);
+
+        // Trigger change event for phenotype files
+        if(type === 'phenotype') {
+          fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
       }
     }, false);
   });

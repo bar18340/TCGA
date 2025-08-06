@@ -86,3 +86,41 @@ def test_filter_zero_percent_0(data_cleaner, zero_filter_df):
     # Only GeneA (which has 0% zeros) should remain.
     assert retained_df.shape[0] == 1
     assert retained_df["Gene_Name"][0] == "GeneA_0_zeros"
+
+def test_filter_zero_percent_boundary_values(data_cleaner):
+    """Test exact boundary conditions for zero filtering."""
+    df = pl.DataFrame({
+        "Gene": ["A", "B", "C"],
+        "P1": [1.0, 0.0, 0.0],
+        "P2": [1.0, 1.0, 0.0],
+        "P3": [1.0, 1.0, 1.0],
+        "P4": [1.0, 1.0, 1.0]
+    })
+    
+    # Row percentages:
+    # A: 0% zeros (0/4)
+    # B: 25% zeros (1/4)
+    # C: 50% zeros (2/4)
+    
+    # Test boundary conditions
+    result = data_cleaner.filter_by_zero_percentage(df, 0, ["Gene"])
+    assert result.shape[0] == 1  # Special case: keep only rows with exactly 0% zeros
+    assert result["Gene"][0] == "A"  # Only A has no zeros
+    
+    result = data_cleaner.filter_by_zero_percentage(df, 25, ["Gene"])
+    assert result.shape[0] == 1  # Only A (0% < 25%)
+    assert result["Gene"][0] == "A"
+    
+    result = data_cleaner.filter_by_zero_percentage(df, 26, ["Gene"])
+    assert result.shape[0] == 2  # A (0%) and B (25% < 26%)
+    assert set(result["Gene"].to_list()) == {"A", "B"}
+    
+    result = data_cleaner.filter_by_zero_percentage(df, 50, ["Gene"])
+    assert result.shape[0] == 2  # A (0%) and B (25% < 50%)
+    assert set(result["Gene"].to_list()) == {"A", "B"}
+    
+    result = data_cleaner.filter_by_zero_percentage(df, 51, ["Gene"])
+    assert result.shape[0] == 3  # All rows (all have < 51% zeros)
+    
+    result = data_cleaner.filter_by_zero_percentage(df, 100, ["Gene"])
+    assert result.shape[0] == 3  # All rows (all have < 100% zeros)

@@ -105,3 +105,23 @@ def test_merge_returns_unmodified_if_no_phenotypes_selected(phenotype_processor,
     )
     assert_frame_equal(updated_meth, sample_methylation_df)
     assert_frame_equal(updated_expr, sample_expression_df)
+
+def test_merge_into_files_only_expression(phenotype_processor, sample_expression_df, sample_phenotype_df):
+    """
+    Tests that phenotype merging works correctly when only an expression file is provided.
+    """
+    selected_chars = ["age"]
+
+    expected_expr = pl.DataFrame({
+        "Gene_Name": ["age"],
+        "Patient1": ["50"],
+        "Patient2": ["65"],
+        "Patient3": [""],
+    }).vstack(sample_expression_df.cast(pl.Utf8))
+
+    updated_meth, updated_expr = phenotype_processor.merge_into_files(
+        None, sample_expression_df, sample_phenotype_df, selected_chars
+    )
+
+    assert updated_meth is None
+    assert_frame_equal(updated_expr, expected_expr)
