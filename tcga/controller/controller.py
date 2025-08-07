@@ -110,10 +110,28 @@ class Controller:
             merged_df = self.data_merger.merge(meth_df, map_df)
             cleaned_meth = self.data_cleaner.clean_merged_df(merged_df)
         
-        # Currently, the expression file has no initial cleaning step, but this
-        # structure allows one to be easily added in the future.
-        cleaned_expr = expr_df if expr_df is not None else None
+        # Clean expression data
+        cleaned_expr = None
+        if expr_df is not None:
+            # Get data columns (not Gene_Name)
+            data_cols = [c for c in expr_df.columns if c != "Gene_Name"]
         
+            # Fill nulls with 0.0
+            expr_expressions = []
+            for col in expr_df.columns:
+                if col in data_cols:
+                    expr_expressions.append(
+                        pl.col(col)
+                        .cast(pl.Float64, strict=False)
+                        .fill_null(0.0)
+                        .fill_nan(0.0)
+                        .alias(col)
+                    )
+                else:
+                    expr_expressions.append(pl.col(col))
+        
+            cleaned_expr = expr_df.with_columns(expr_expressions)
+    
         return cleaned_meth, cleaned_expr
 
     def _intersect_dataframes(self, meth_df, expr_df, original_meth_df, original_expr_df):

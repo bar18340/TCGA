@@ -70,12 +70,19 @@ class FileHandler:
         else:
             # Read CSV/TSV file
             self.logger.info(f"Reading CSV/TSV file: {os.path.basename(file_path)}")
+            # Detect separator based on file extension
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext == '.csv':
+                separator = ','  # Use comma for CSV files
+            else:
+                separator = '\t'  # Use tab for TSV/TXT files
+            
             df = pl.read_csv(
-                file_path, 
-                separator='\t',  # Default to tab separator
-                infer_schema_length=10000, 
-                ignore_errors=True, 
-                null_values=["NA", "na", "null", ""]
+                file_path,
+                separator=separator,
+                infer_schema_length=10000,
+                ignore_errors=True,
+                null_values=["NA", "na", "null", "", "nan", "NaN", "NAN"]
             )
             
         return df

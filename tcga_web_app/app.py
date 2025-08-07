@@ -285,8 +285,11 @@ def preview_phenotype():
                 except:
                     df = pl.read_excel(tmp_path)
         else:
-            # Read CSV/TSV file
-            df = pl.read_csv(tmp_path, separator='\t', infer_schema_length=10000)
+            # Read CSV/TSV file - handle both comma and tab
+            if ext_lower == '.csv':
+                df = pl.read_csv(tmp_path, separator=',', infer_schema_length=10000)
+            else:
+                df = pl.read_csv(tmp_path, separator='\t', infer_schema_length=10000)
         
         # Clean up temp file
         try:
