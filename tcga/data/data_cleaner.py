@@ -59,11 +59,12 @@ class DataCleaner:
 
         # 3. For each data column, replace '.' with null, then cast the whole column to float,
         cleaning_expressions = [
-            pl.when(pl.col(c).cast(pl.Utf8) == ".")
+            pl.when(pl.col(c).cast(pl.Utf8).is_in([".", "nan", "NaN", "NAN"]))
                 .then(None)
                 .otherwise(pl.col(c))
                 .cast(pl.Float64, strict=False)
                 .fill_null(0.0)
+                .fill_nan(0.0)
                 .alias(c)
             for c in data_columns
         ]
