@@ -106,8 +106,9 @@ def test_logs_warning_on_duplicate_gene_names(file_handler, tmp_path, caplog):
 
 def test_load_csv_with_special_characters(file_handler, tmp_path):
     """Test handling of CSV with special characters in data."""
+    # Create actual CSV file with comma separator
     special_csv = tmp_path / "special.csv"
-    special_csv.write_text("Gene_Name\tPatient1\tPatient2\nGENE@A\t1.0\t2.0\nGENE#B\t3.0\t4.0\n")
+    special_csv.write_text("Gene_Name,Patient1,Patient2\nGENE@A,1.0,2.0\nGENE#B,3.0,4.0\n")
     
     result = file_handler.load_dataframe(str(special_csv), 'gene_expression')
     assert result is not None
@@ -125,8 +126,9 @@ def test_load_empty_csv(file_handler, tmp_path):
 
 def test_load_csv_headers_only(file_handler, tmp_path):
     """Test handling of CSV with headers but no data."""
+    # Create actual CSV file with comma separator
     headers_only = tmp_path / "headers.csv"
-    headers_only.write_text("Gene_Name\tPatient1\tPatient2\n")
+    headers_only.write_text("Gene_Name,Patient1,Patient2\n")
     
     result = file_handler.load_dataframe(str(headers_only), 'gene_expression')
     assert result is not None

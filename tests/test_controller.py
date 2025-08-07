@@ -23,9 +23,9 @@ def sample_gene_mapping_df():
 def sample_expression_df():
     return pl.DataFrame({
         "Gene_Name": ["GENE_A", "GENE_B", "GENE_C"], 
-        "PatientA": [10, 20, 30], 
-        "PatientB": [40, 50, 60], 
-        "PatientC": [70, 80, 90]
+        "PatientA": [10.0, 20.0, 30.0],  # Changed to Float64
+        "PatientB": [40.0, 50.0, 60.0],  # Changed to Float64
+        "PatientC": [70.0, 80.0, 90.0]   # Changed to Float64
     })
 
 @pytest.fixture
@@ -59,7 +59,12 @@ def test_scenario_expression_only(mocker, controller, sample_expression_df):
     final_meth, final_expr = controller.process_files(gene_expression_path="fake/expr.txt")
     assert final_meth is None
     assert final_expr is not None
-    assert_frame_equal(final_expr, sample_expression_df)
+    # The processing converts to Float64 and fills nulls, so we need to expect that
+    expected_expr = sample_expression_df.with_columns([
+        pl.col(c).cast(pl.Float64).fill_null(0.0).fill_nan(0.0) 
+        for c in sample_expression_df.columns if c != "Gene_Name"
+    ])
+    assert_frame_equal(final_expr, expected_expr)
 
 def test_scenario_meth_and_expr_no_pheno(mocker, controller, sample_methylation_df, sample_gene_mapping_df, sample_expression_df):
     mocker.patch('tcga.data.file_handler.FileHandler.load_dataframe', side_effect=[

@@ -120,8 +120,9 @@ class TestPerformanceEdgeCases:
             "Actual_Gene_Name": ["GENE_A", "GENE_B"]
         })
         
-        meth_path = tmp_path / "many_cols_meth.csv"
-        map_path = tmp_path / "many_cols_map.csv"
+        # Use .txt extension for tab-separated files
+        meth_path = tmp_path / "many_cols_meth.txt"
+        map_path = tmp_path / "many_cols_map.txt"
         meth_df.write_csv(str(meth_path), separator='\t')
         map_df.write_csv(str(map_path), separator='\t')
         
